@@ -986,7 +986,7 @@ const GameStatus = styled.div`
 `;
 
 // Game State Roadmap Component
-const GameStateRoadmap = ({ gameState, contract, onResolve, isLoading: parentIsLoading }) => {
+const GameStateRoadmap = ({ gameState, contract, onResolve, isLoading: parentIsLoading, account }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const lastAttemptRef = useRef(0);
@@ -1060,16 +1060,34 @@ const GameStateRoadmap = ({ gameState, contract, onResolve, isLoading: parentIsL
 
   const currentIndex = getCurrentStateIndex();
 
+  // Add check for player ownership
+  const isPlayerGame = gameState.isActive && 
+    gameState.player.toLowerCase() === account?.toLowerCase();
+
+  // Only show game state if it belongs to the current player
+  if (!isPlayerGame && gameState.isActive) {
+    return (
+      <GameStateContainer>
+        <GameStatus $status="active">
+          <div className="status-icon" />
+          <span className="status-text">
+            Game in progress by another player
+          </span>
+        </GameStatus>
+      </GameStateContainer>
+    );
+  }
+
   return (
     <GameStateContainer>
       <GameStatus $status={gameState.randomFulfilled ? 'pending' : 'active'}>
         <div className="status-icon" />
         <span className="status-text">
-          {gameState.randomFulfilled ? 'Ready to Resolve' : 
-           gameState.isActive ? 'Game in Progress' : 
-           'Waiting for New Game'}
+          {!gameState.isActive ? 'Waiting for New Game' :
+           gameState.randomFulfilled ? 'Ready to Resolve' : 
+           'Game in Progress'}
         </span>
-        {gameState.isActive && (
+        {isPlayerGame && gameState.isActive && (
           <button
             className="status-action"
             onClick={handleResolve}
@@ -1580,6 +1598,7 @@ const DiceGame = ({ contract, tokenContract, account }) => {
             contract={contract}
             onResolve={handleGameResolved}
             isLoading={isLoading}
+            account={account}
           />
         </GameSection>
       </div>
