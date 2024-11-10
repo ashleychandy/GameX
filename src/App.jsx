@@ -6,27 +6,30 @@ import { WalletProvider } from './contexts/WalletContext';
 import { router } from './routes.jsx';
 import { themes } from './styles/theme';
 import { GlobalStyle } from './styles/GlobalStyle';
+import ErrorBoundary from './components/common/ErrorBoundary';
 
 function App() {
   return (
-    <ThemeProvider theme={themes.dark}>
-      <WalletProvider>
-        <GlobalStyle />
-        <RouterProvider router={router} />
-        <ToastContainer
-          position="bottom-right"
-          autoClose={5000}
-          hideProgressBar={false}
-          newestOnTop
-          closeOnClick
-          rtl={false}
-          pauseOnFocusLoss
-          draggable
-          pauseOnHover
-          theme="dark"
-        />
-      </WalletProvider>
-    </ThemeProvider>
+    <ErrorBoundary>
+      <ThemeProvider theme={themes.dark}>
+        <WalletProvider>
+          <GlobalStyle />
+          <RouterProvider router={router} />
+          <ToastContainer
+            position="bottom-right"
+            autoClose={5000}
+            hideProgressBar={false}
+            newestOnTop
+            closeOnClick
+            rtl={false}
+            pauseOnFocusLoss
+            draggable
+            pauseOnHover
+            theme="dark"
+          />
+        </WalletProvider>
+      </ThemeProvider>
+    </ErrorBoundary>
   );
 }
 

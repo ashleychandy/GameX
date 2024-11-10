@@ -13,7 +13,8 @@ export default defineConfig(({ mode }) => {
         buffer: 'buffer',
         util: 'util',
         stream: 'stream-browserify',
-        crypto: 'crypto-browserify'
+        crypto: 'crypto-browserify',
+        '@assets': resolve(__dirname, 'src/assets')
       },
       extensions: ['.js', '.jsx', '.ts', '.tsx']
     },
@@ -33,12 +34,19 @@ export default defineConfig(({ mode }) => {
       rollupOptions: {
         input: {
           main: resolve(__dirname, 'index.html')
-        }
-      }
+        },
+        output: {
+          manualChunks: {
+            vendor: ['react', 'react-dom', 'framer-motion', 'styled-components'],
+          },
+        },
+      },
+      sourcemap: true,
     },
     server: {
       port: 3000,
       open: true
-    }
+    },
+    assetsInclude: ['**/*.svg']
   }
 })

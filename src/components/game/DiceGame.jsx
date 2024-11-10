@@ -134,6 +134,7 @@ export function DiceGame() {
   const [selectedNumber, setSelectedNumber] = useState(null);
   const [betAmount, setBetAmount] = useState('');
   const [isPlacingBet, setIsPlacingBet] = useState(false);
+  const [validationError, setValidationError] = useState('');
 
   const { address, balance } = useWallet();
   const { isApproving, checkAndApprove } = useTokenApproval();
@@ -144,6 +145,7 @@ export function DiceGame() {
     previousBets,
     requestDetails,
     isLoading,
+    error,
     playDice,
     resolveGame,
     refreshGameData
@@ -151,11 +153,31 @@ export function DiceGame() {
 
   const quickAmounts = ['10', '50', '100', '500'];
 
+  // Validate input amount
+  const validateAmount = (amount) => {
+    if (!amount) return 'Please enter an amount';
+    const parsedAmount = parseFloat(amount);
+    if (isNaN(parsedAmount)) return 'Invalid amount';
+    if (parsedAmount < GAME_CONFIG.MIN_BET) return `Minimum bet is ${GAME_CONFIG.MIN_BET}`;
+    if (parsedAmount > GAME_CONFIG.MAX_BET) return `Maximum bet is ${GAME_CONFIG.MAX_BET}`;
+    if (parsedAmount > parseFloat(formatAmount(balance))) return 'Insufficient balance';
+    return '';
+  };
+
   const handleQuickAmount = (amount) => {
-    if (parseFloat(amount) > parseFloat(formatAmount(balance))) {
-      toast.warning("Insufficient balance");
-      return;
+    const error = validateAmount(amount);
+    setValidationError(error);
+    if (!error) {
+      setBetAmount(amount);
+    } else {
+      toast.warning(error);
     }
+  };
+
+  const handleBetAmountChange = (e) => {
+    const amount = e.target.value;
+    const error = validateAmount(amount);
+    setValidationError(error);
     setBetAmount(amount);
   };
 
@@ -170,59 +192,40 @@ export function DiceGame() {
       return;
     }
 
+    const error = validateAmount(betAmount);
+    if (error) {
+      toast.error(error);
+      return;
+    }
+
     try {
       setIsPlacingBet(true);
       
-      // Validate bet amount
-      const amount = ethers.parseEther(betAmount);
-      if (amount < GAME_CONFIG.MIN_BET || amount > GAME_CONFIG.MAX_BET) {
-        toast.error('Invalid bet amount');
-        return;
-      }
-
       // Check approval first
-      const approved = await checkAndApprove(amount);
+      const approved = await checkAndApprove(ethers.parseEther(betAmount));
       if (!approved) return;
 
       await playDice(selectedNumber, betAmount);
       
+      // Reset form
       setSelectedNumber(null);
       setBetAmount('');
+      setValidationError('');
       
     } catch (error) {
       console.error('Error placing bet:', error);
-      const errorMessage = error.reason || error.message || 'Transaction failed';
-      toast.error(`Failed to place bet: ${errorMessage}`);
+      toast.error(error.message || 'Failed to place bet');
     } finally {
       setIsPlacingBet(false);
     }
   };
 
-  const isGameLoading = isLoading || isPlacingBet || isApproving;
-
-  const canPlaceBet = !currentGame?.isActive && 
-                     selectedNumber >= GAME_CONFIG.MIN_NUMBER && 
-                     selectedNumber <= GAME_CONFIG.MAX_NUMBER &&
-                     betAmount && 
-                     !isGameLoading;
-
-  const canResolveGame = currentGame?.isActive && 
-                        gameState === GAME_STATES.READY_TO_RESOLVE &&
-                        !isGameLoading;
-
-  // Calculate potential winnings
-  const potentialWinnings = betAmount ? 
-    (parseFloat(betAmount) * GAME_CONFIG.PAYOUT_MULTIPLIER).toFixed(2) : 
-    "0.00";
-
-  if (!address) {
-    return (
-      <GameCard>
-        <h2>Connect Wallet</h2>
-        <p>Please connect your wallet to play the game.</p>
-      </GameCard>
-    );
-  }
+  // Auto-refresh when game state changes
+  useEffect(() => {
+    if (gameState === 'COMPLETED_WIN' || gameState === 'COMPLETED_LOSS') {
+      refreshGameData();
+    }
+  }, [gameState, refreshGameData]);
 
   return (
     <GameContainer>
@@ -273,7 +276,7 @@ export function DiceGame() {
           <BetControls>
             <AmountInput
               value={betAmount}
-              onChange={setBetAmount}
+              onChange={handleBetAmountChange}
               disabled={!address || currentGame?.isActive || isPlacingBet}
               min={ethers.formatEther(GAME_CONFIG.MIN_BET)}
               max={ethers.formatEther(GAME_CONFIG.MAX_BET)}

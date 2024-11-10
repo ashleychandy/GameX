@@ -106,10 +106,11 @@ const GameItem = styled(motion.div)`
   background: ${({ theme }) => theme.surface};
   border: 1px solid ${({ theme }) => theme.border};
   transition: all 0.3s ease;
+  cursor: ${({ $disabled }) => ($disabled ? 'not-allowed' : 'pointer')};
 
   &:hover {
-    transform: translateY(-4px);
-    box-shadow: ${({ theme }) => theme.shadow.lg};
+    transform: ${({ $disabled }) => ($disabled ? 'none' : 'translateY(-4px)')};
+    box-shadow: ${({ theme, $disabled }) => ($disabled ? 'none' : theme.shadow.lg)};
   }
 `;
 
@@ -349,14 +350,15 @@ export function HomePage() {
       >
         <h2>Available Games</h2>
         <GamesGrid>
-          {games.map((game, index) => (
+          {games.map((game) => (
             <GameItem
               key={game.id}
-              as={MotionLink}
-              to={game.path}
+              as={game.live ? Link : 'div'}
+              to={game.live ? game.path : undefined}
+              $disabled={!game.live}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              whileHover={{ scale: 1.02 }}
+              whileHover={game.live ? { scale: 1.02 } : {}}
               transition={{ duration: 0.2 }}
             >
               <GameStatus $live={game.live}>
@@ -367,10 +369,13 @@ export function HomePage() {
                 <h3>{game.name}</h3>
                 <p>{game.description}</p>
                 <PlayButton
-                  as={Link}
-                  to={game.path}
                   $variant={game.live ? "primary" : "secondary"}
                   disabled={!game.live}
+                  onClick={(e) => {
+                    if (!game.live) {
+                      e.preventDefault();
+                    }
+                  }}
                 >
                   {game.live ? "Play Now" : "Coming Soon"}
                 </PlayButton>

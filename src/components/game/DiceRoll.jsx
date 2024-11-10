@@ -38,7 +38,7 @@ const Dice = styled(motion.div)`
   }
 `;
 
-const DiceFace = ({ number }) => {
+const DiceFace = ({ number = 1 }) => {
   const getDotPositions = (num) => {
     switch (num) {
       case 1:
@@ -92,59 +92,42 @@ const DiceFace = ({ number }) => {
   );
 };
 
-DiceFace.propTypes = {
-  number: PropTypes.number.isRequired
-};
-
-export function DiceRoll({ number, isRolling, won }) {
-  const diceVariants = {
-    rolling: {
-      rotateX: [0, 360, 720, 1080],
-      rotateY: [0, 360, 720, 1080],
-      transition: {
-        duration: 2,
-        ease: "easeInOut",
-        times: [0, 0.2, 0.5, 1]
-      }
-    },
-    stopped: {
-      rotateX: 0,
-      rotateY: 0,
-      transition: {
-        duration: 0.5,
-        ease: "easeOut"
-      }
-    }
-  };
-
+export function DiceRoll({ 
+  number = 1,
+  rolling = false,
+  onRollComplete = () => {},
+}) {
   return (
     <DiceContainer>
-      <AnimatePresence mode="wait">
-        <Dice
-          key={number}
-          variants={diceVariants}
-          animate={isRolling ? "rolling" : "stopped"}
-          initial="stopped"
-          style={{
-            border: won ? '2px solid #4CAF50' : undefined
-          }}
-        >
-          <DiceFace number={number || 1} />
-        </Dice>
-      </AnimatePresence>
+      <Dice
+        animate={rolling ? {
+          rotateX: [0, 360, 720, 1080],
+          rotateY: [0, 360, 720, 1080],
+          rotateZ: [0, 360, 720, 1080],
+        } : {
+          rotateX: 0,
+          rotateY: 0,
+          rotateZ: 0,
+        }}
+        transition={rolling ? {
+          duration: 2,
+          ease: "easeOut",
+          onComplete: onRollComplete,
+        } : {
+          duration: 0.5,
+          ease: "easeOut",
+        }}
+      >
+        <DiceFace number={number} />
+      </Dice>
     </DiceContainer>
   );
 }
 
 DiceRoll.propTypes = {
   number: PropTypes.number,
-  isRolling: PropTypes.bool.isRequired,
-  won: PropTypes.bool
-};
-
-DiceRoll.defaultProps = {
-  number: 1,
-  won: false
+  rolling: PropTypes.bool,
+  onRollComplete: PropTypes.func,
 };
 
 export default DiceRoll; 
