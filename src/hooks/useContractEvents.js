@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useWallet } from '../contexts/WalletContext';
 import { toast } from 'react-toastify';
-import { formatAmount } from '../utils/helpers';
+import { formatAmount } from '../utils/format';
 
 export function useContractEvents() {
   const { diceContract: dice, address } = useWallet();

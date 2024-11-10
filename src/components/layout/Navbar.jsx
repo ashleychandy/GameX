@@ -126,9 +126,6 @@ export function Navbar() {
           <NavLink to="/game" $active={location.pathname === '/game'}>
             Play
           </NavLink>
-          <NavLink to="/leaderboard" $active={location.pathname === '/leaderboard'}>
-            Leaderboard
-          </NavLink>
         </NavLinks>
         <WalletInfo>
           {isConnected ? (

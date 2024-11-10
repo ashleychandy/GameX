@@ -55,6 +55,11 @@ export const handleError = (error, context = '') => {
   };
 };
 
+export const formatErrorMessage = (error) => {
+  const { message } = handleError(error);
+  return message;
+};
+
 export const isUserRejection = (error) => {
   return error?.code === 'ACTION_REJECTED' || 
          error?.code === 4001 ||
@@ -67,32 +72,6 @@ export const isNetworkError = (error) => {
 
 export const isContractError = (error) => {
   return error.code === ERROR_CODES.CONTRACT_ERROR;
-};
-
-export const formatErrorMessage = (error) => {
-  if (error?.data?.message) {
-    return error.data.message;
-  }
-  
-  if (error?.message) {
-    // Remove common prefixes
-    let message = error.message
-      .replace('execution reverted: ', '')
-      .replace('MetaMask Tx Signature: ', '')
-      .replace('Error: ', '');
-      
-    // Handle specific error cases
-    if (message.includes('insufficient allowance')) {
-      return 'Please approve tokens before playing';
-    }
-    if (message.includes('user rejected')) {
-      return 'Transaction was cancelled';
-    }
-    
-    return message;
-  }
-  
-  return 'An unexpected error occurred';
 };
 
 export const logError = (error, context = '') => {
