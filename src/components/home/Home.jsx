@@ -78,21 +78,21 @@ export function HomePage() {
         animate="visible"
       >
         <Title variants={itemVariants}>
-          Welcome to Crypto Dice Game
+          GameX
         </Title>
         <Subtitle variants={itemVariants}>
-          A decentralized gambling game built on Ethereum
+          The future of decentralized gaming and rewards
         </Subtitle>
         <motion.div variants={itemVariants}>
           <Button
             as={Link}
-            to="/game"
+            to="/token"
             $variant="primary"
             $size="large"
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
           >
-            Play Now
+            Buy GAMEX
           </Button>
         </motion.div>
       </Hero>
@@ -102,10 +102,10 @@ export function HomePage() {
           variants={itemVariants}
           whileHover={{ scale: 1.02 }}
         >
-          <h2>Provably Fair</h2>
+          <h2>Staking Rewards</h2>
           <p>
-            Our game uses Chainlink VRF for verifiable random numbers,
-            ensuring complete fairness and transparency.
+            Stake your GameX tokens to earn passive income and unlock exclusive platform benefits.
+            Up to 25% APY on staked tokens.
           </p>
         </Feature>
 
@@ -113,10 +113,10 @@ export function HomePage() {
           variants={itemVariants}
           whileHover={{ scale: 1.02 }}
         >
-          <h2>Low Fees</h2>
+          <h2>Gaming Utility</h2>
           <p>
-            Play with our native GAMEX token and enjoy minimal transaction
-            fees on the Ethereum network.
+            Use GameX tokens across multiple games and earn more through skilled gameplay.
+            All games feature provably fair outcomes via Chainlink VRF.
           </p>
         </Feature>
 
@@ -124,13 +124,68 @@ export function HomePage() {
           variants={itemVariants}
           whileHover={{ scale: 1.02 }}
         >
-          <h2>Instant Payouts</h2>
+          <h2>GameX DAO</h2>
           <p>
-            Winnings are automatically sent to your wallet as soon as
-            the game resolves. No delays, no hassle.
+            Participate in governance and shape the future of the platform.
+            Token holders can vote on key protocol decisions and treasury allocations.
           </p>
         </Feature>
       </Features>
+
+      <TokenMetrics variants={containerVariants}>
+        <h2>Token Metrics</h2>
+        <MetricsGrid>
+          <MetricCard variants={itemVariants}>
+            <h3>Total Supply</h3>
+            <p>1,000,000,000 GAMEX</p>
+          </MetricCard>
+          <MetricCard variants={itemVariants}>
+            <h3>Circulating Supply</h3>
+            <p>250,000,000 GAMEX</p>
+          </MetricCard>
+          <MetricCard variants={itemVariants}>
+            <h3>Current Price</h3>
+            <p>$0.XX USD</p>
+          </MetricCard>
+        </MetricsGrid>
+      </TokenMetrics>
     </HomeContainer>
   );
 }
+
+// Add new styled components
+const TokenMetrics = styled(motion.section)`
+  margin-top: 4rem;
+  
+  h2 {
+    font-size: 2rem;
+    margin-bottom: 2rem;
+    color: ${({ theme }) => theme.text.primary};
+  }
+`;
+
+const MetricsGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 2rem;
+`;
+
+const MetricCard = styled(motion.div)`
+  background: ${({ theme }) => theme.surface};
+  padding: 2rem;
+  border-radius: 1rem;
+  box-shadow: ${({ theme }) => theme.shadow.md};
+
+  h3 {
+    color: ${({ theme }) => theme.text.secondary};
+    margin-bottom: 1rem;
+  }
+
+  p {
+    font-size: 1.75rem;
+    font-weight: bold;
+    background: ${({ theme }) => theme.gradients.primary};
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+`;

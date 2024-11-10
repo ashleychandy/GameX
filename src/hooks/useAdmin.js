@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import { ethers } from 'ethers';
 import { useWallet } from '../contexts/WalletContext';
 import { ROLES } from '../utils/constants';
@@ -9,63 +9,8 @@ export function useAdmin() {
   const { tokenContract: token, diceContract: dice, address } = useWallet();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [isAdmin, setIsAdmin] = useState(false);
 
-  useEffect(() => {
-    const checkAdmin = async () => {
-      if (!token || !address) {
-        setIsAdmin(false);
-        return;
-      }
-      try {
-        const hasAdminRole = await token.hasRole(ROLES.DEFAULT_ADMIN_ROLE, address);
-        setIsAdmin(hasAdminRole);
-      } catch (err) {
-        console.error('Error checking admin status:', err);
-        setIsAdmin(false);
-      }
-    };
-
-    checkAdmin();
-  }, [token, address]);
-
-  const mintTokens = useCallback(async (to, amount) => {
-    if (!token) return;
-    try {
-      setIsLoading(true);
-      setError(null);
-      const tx = await token.mint(to, ethers.parseEther(amount));
-      toast.info('Minting tokens...');
-      await tx.wait();
-      toast.success(`Successfully minted ${amount} GAMEX to ${to}`);
-    } catch (error) {
-      const { message } = handleError(error);
-      setError(message);
-      toast.error(message);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [token]);
-
-  const setHouseEdge = useCallback(async (newEdge) => {
-    if (!dice) return;
-    try {
-      setIsLoading(true);
-      setError(null);
-      const tx = await dice.setHouseEdge(ethers.parseEther(newEdge));
-      toast.info('Setting house edge...');
-      await tx.wait();
-      toast.success(`House edge updated to ${newEdge}%`);
-    } catch (error) {
-      const { message } = handleError(error);
-      setError(message);
-      toast.error(message);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [dice]);
-
-  const handleOperation = async (operation, successMessage) => {
+  const handleTransaction = async (operation, successMessage) => {
     try {
       setIsLoading(true);
       setError(null);
@@ -73,67 +18,111 @@ export function useAdmin() {
       toast.info('Transaction submitted...');
       await tx.wait();
       toast.success(successMessage);
+      return true;
     } catch (error) {
       const { message } = handleError(error);
       setError(message);
       toast.error(message);
+      return false;
     } finally {
       setIsLoading(false);
     }
   };
 
+  const mintTokens = useCallback(async (to, amount) => {
+    if (!token) return;
+    return handleTransaction(
+      () => token.mint(to, ethers.parseEther(amount)),
+      `Successfully minted ${amount} tokens to ${to}`
+    );
+  }, [token]);
+
+  const setHouseEdge = useCallback(async (newEdge) => {
+    if (!dice) return;
+    return handleTransaction(
+      () => dice.setHouseEdge(ethers.parseEther(newEdge)),
+      `House edge updated to ${newEdge}%`
+    );
+  }, [dice]);
+
   const withdrawFunds = useCallback(async (amount) => {
     if (!dice) return;
-    await handleOperation(
+    return handleTransaction(
       () => dice.withdrawFunds(ethers.parseEther(amount)),
-      `Successfully withdrawn ${amount} GAMEX`
+      `Successfully withdrawn ${amount} tokens`
     );
   }, [dice]);
 
   const pauseGame = useCallback(async () => {
     if (!dice) return;
-    try {
-      setIsLoading(true);
-      setError(null);
-      const tx = await dice.pause();
-      toast.info('Pausing game...');
-      await tx.wait();
-      toast.success('Game paused successfully');
-    } catch (error) {
-      const { message } = handleError(error);
-      setError(message);
-      toast.error(message);
-    } finally {
-      setIsLoading(false);
-    }
+    return handleTransaction(
+      () => dice.pause(),
+      'Game paused successfully'
+    );
   }, [dice]);
 
   const unpauseGame = useCallback(async () => {
     if (!dice) return;
-    try {
-      setIsLoading(true);
-      setError(null);
-      const tx = await dice.unpause();
-      toast.info('Unpausing game...');
-      await tx.wait();
-      toast.success('Game unpaused successfully');
-    } catch (error) {
-      const { message } = handleError(error);
-      setError(message);
-      toast.error(message);
-    } finally {
-      setIsLoading(false);
-    }
+    return handleTransaction(
+      () => dice.unpause(),
+      'Game unpaused successfully'
+    );
   }, [dice]);
+
+  const setHistorySize = useCallback(async (size) => {
+    if (!dice) return;
+    return handleTransaction(
+      () => dice.setHistorySize(size),
+      `History size updated to ${size}`
+    );
+  }, [dice]);
+
+  const setCallbackGasLimit = useCallback(async (limit) => {
+    if (!dice) return;
+    return handleTransaction(
+      () => dice.setCallbackGasLimit(limit),
+      `Callback gas limit updated to ${limit}`
+    );
+  }, [dice]);
+
+  const setCoordinator = useCallback(async (coordinatorAddress) => {
+    if (!dice) return;
+    return handleTransaction(
+      () => dice.setCoordinator(coordinatorAddress),
+      'VRF Coordinator updated successfully'
+    );
+  }, [dice]);
+
+  const grantTokenRole = useCallback(async (role, account) => {
+    if (!token) return;
+    const roleHash = ROLES[role];
+    return handleTransaction(
+      () => token.grantRole(roleHash, account),
+      `${role} granted to ${account}`
+    );
+  }, [token]);
+
+  const revokeTokenRole = useCallback(async (role, account) => {
+    if (!token) return;
+    const roleHash = ROLES[role];
+    return handleTransaction(
+      () => token.revokeRole(roleHash, account),
+      `${role} revoked from ${account}`
+    );
+  }, [token]);
 
   return {
     isLoading,
-    isAdmin,
     error,
     mintTokens,
     setHouseEdge,
     withdrawFunds,
     pauseGame,
-    unpauseGame
+    unpauseGame,
+    setHistorySize,
+    setCallbackGasLimit,
+    setCoordinator,
+    grantTokenRole,
+    revokeTokenRole
   };
 } 

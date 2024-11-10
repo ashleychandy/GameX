@@ -1,141 +1,165 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { ethers } from 'ethers';
+import { useContract } from './useContract';
 import { useWallet } from '../contexts/WalletContext';
-import { handleError, showError } from '../utils/errorHandling';
-import { GAME_STATES } from '../utils/constants';
+import { useGameContext } from '../contexts/GameContext';
+import { handleTransaction } from '../utils/transactionUtils';
+import { validateBetAmount, validateGameData } from '../utils/validation';
+import { GAME_STATES, TRANSACTION_TYPES, POLLING_INTERVAL, CONTRACTS } from '../utils/constants';
+import { handleError } from '../utils/errorHandling';
+import DiceABI from '../abi/Dice.json';
 
 export function useGame() {
-  const { diceContract: contract, address } = useWallet();
-  const [gameData, setGameData] = useState(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const { contract, isValid } = useContract('dice');
+  const { address } = useWallet();
+  const { 
+    gameData,
+    isLoading,
+    error,
+    setLoading,
+    setError,
+    updateGameData,
+    resetGame
+  } = useGameContext();
   
-  // Use ref for event subscriptions
-  const eventSubscriptions = useRef([]);
-
-  const isValid = contract && address;
+  const pollingInterval = useRef(null);
 
   const fetchGameData = useCallback(async () => {
-    if (!isValid) return;
+    if (!isValid || !contract || !address) return;
 
     try {
-      const [gameStatus, requestDetails] = await Promise.all([
-        contract.getGameStatus(address),
-        contract.getCurrentRequestDetails(address)
-      ]);
-
-      setGameData({
+      const data = await contract.getUserData(address);
+      
+      // Transform contract data into expected format
+      const transformedData = {
         currentGame: {
-          isActive: gameStatus.isActive,
-          status: gameStatus.status,
-          chosenNumber: gameStatus.chosenNumber.toString(),
-          amount: ethers.formatEther(gameStatus.amount),
-          timestamp: gameStatus.timestamp.toString()
+          isActive: data.currentGame.isActive || false,
+          chosenNumber: data.currentGame.chosenNumber?.toString() || '0',
+          result: data.currentGame.result?.toString() || '0',
+          amount: data.currentGame.amount?.toString() || '0',
+          timestamp: data.currentGame.timestamp?.toString() || '0',
+          payout: data.currentGame.payout?.toString() || '0',
+          randomWord: data.currentGame.randomWord?.toString() || '0',
+          status: data.currentGame.status || 0
         },
-        requestDetails: {
-          requestId: requestDetails.requestId.toString(),
-          requestFulfilled: requestDetails.requestFulfilled,
-          requestActive: requestDetails.requestActive
+        stats: {
+          totalGames: data.totalGames?.toString() || '0',
+          totalBets: data.totalBets?.toString() || '0',
+          totalWinnings: data.totalWinnings?.toString() || '0',
+          totalLosses: data.totalLosses?.toString() || '0',
+          lastPlayed: data.lastPlayed?.toString() || '0'
         }
-      });
+      };
+
+      // Now validate the transformed data
+      const validatedData = validateGameData(transformedData);
+      updateGameData(validatedData);
     } catch (error) {
       console.error('Error fetching game data:', error);
+      setError(handleError(error).message);
     }
-  }, [contract, address]);
+  }, [contract, address, isValid, updateGameData, setError]);
 
-  // Subscribe to events
-  useEffect(() => {
-    if (!isValid) return;
+  const startPolling = useCallback(() => {
+    if (pollingInterval.current) return;
 
-    const gameStartedFilter = contract.filters.GameStarted(address);
-    const gameEndedFilter = contract.filters.GameEnded(address);
-    
-    const onGameStarted = () => fetchGameData();
-    const onGameEnded = () => fetchGameData();
-
-    contract.on(gameStartedFilter, onGameStarted);
-    contract.on(gameEndedFilter, onGameEnded);
-
-    eventSubscriptions.current.push(
-      { event: gameStartedFilter, handler: onGameStarted },
-      { event: gameEndedFilter, handler: onGameEnded }
-    );
-
-    return () => {
-      eventSubscriptions.current.forEach(({ event, handler }) => {
-        contract.off(event, handler);
-      });
-      eventSubscriptions.current = [];
-    };
-  }, [contract, address, fetchGameData]);
-
-  // Initial data fetch
-  useEffect(() => {
-    fetchGameData();
+    pollingInterval.current = setInterval(() => {
+      fetchGameData();
+    }, POLLING_INTERVAL);
   }, [fetchGameData]);
 
-  const playDice = async (number, amount) => {
-    if (!isValid) {
+  const stopPolling = useCallback(() => {
+    if (pollingInterval.current) {
+      clearInterval(pollingInterval.current);
+      pollingInterval.current = null;
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchGameData();
+    return () => stopPolling();
+  }, [fetchGameData, stopPolling]);
+
+  const playDice = useCallback(async (number, amount) => {
+    if (!isValid || !contract) {
       throw new Error('Contract not initialized');
     }
 
     try {
-      setIsLoading(true);
+      setLoading(true);
       setError(null);
 
-      const amountInWei = ethers.parseEther(amount.toString());
-      const gasEstimate = await contract.playDice.estimateGas(number, amountInWei);
+      // Validate inputs
+      const validatedAmount = validateBetAmount(amount);
+      if (number < 1 || number > 6) {
+        throw new Error('Invalid number selection');
+      }
+
+      // Execute transaction
+      await handleTransaction(
+        () => contract.playDice(number, validatedAmount),
+        {
+          pendingMessage: 'Placing bet...',
+          successMessage: 'Bet placed successfully!',
+          errorMessage: 'Failed to place bet',
+          type: TRANSACTION_TYPES.PLAY
+        }
+      );
+
+      // Start polling for updates
+      startPolling();
       
-      const tx = await contract.playDice(number, amountInWei, {
-        gasLimit: Math.ceil(gasEstimate * 1.2) // Add 20% buffer
-      });
-
-      await tx.wait();
-      await fetchGameData();
-
-      return tx;
     } catch (error) {
-      const formattedError = handleError(error);
-      setError(formattedError.message);
-      throw formattedError;
+      const { message } = handleError(error);
+      setError(message);
+      throw error;
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
-  };
+  }, [contract, isValid, setLoading, setError, startPolling]);
 
-  const resolveGame = async () => {
-    if (!isValid) {
+  const resolveGame = useCallback(async () => {
+    if (!isValid || !contract) {
       throw new Error('Contract not initialized');
     }
 
+    if (!gameData?.currentGame?.isActive) {
+      throw new Error('No active game to resolve');
+    }
+
     try {
-      setIsLoading(true);
+      setLoading(true);
       setError(null);
 
-      const gasEstimate = await contract.resolveGame.estimateGas();
-      const tx = await contract.resolveGame({
-        gasLimit: Math.ceil(gasEstimate * 1.2)
-      });
+      await handleTransaction(
+        () => contract.resolveGame(),
+        {
+          pendingMessage: 'Resolving game...',
+          successMessage: 'Game resolved successfully!',
+          errorMessage: 'Failed to resolve game',
+          type: TRANSACTION_TYPES.RESOLVE
+        }
+      );
 
-      await tx.wait();
       await fetchGameData();
-
-      return tx;
+      stopPolling();
+      
     } catch (error) {
-      const formattedError = handleError(error);
-      setError(formattedError.message);
-      throw formattedError;
+      const { message } = handleError(error);
+      setError(message);
+      throw error;
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
-  };
+  }, [contract, isValid, gameData, fetchGameData, setLoading, setError, stopPolling]);
 
   return {
     gameData,
     playDice,
     resolveGame,
-    refreshGameData: fetchGameData,
     isLoading,
-    error
+    error,
+    refreshGameData: fetchGameData,
+    resetGame
   };
 }

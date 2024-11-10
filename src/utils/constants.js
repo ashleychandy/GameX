@@ -24,33 +24,31 @@ export const VRF_CONFIG = {
   COORDINATOR: getEnvVar("CHAIN_LINK_VRF_COORDINATOR"),
   KEY_HASH: getEnvVar("CHAIN_LINK_KEY_HASH"),
   SUBSCRIPTION_ID: getEnvVar("CHAIN_LINK_SUBSCRIPTION_ID"),
-  CALLBACK_GAS_LIMIT: parseInt(
-    getEnvVar("CHAIN_LINK_CALLBACKGASLIMIT", "200000")
-  ),
-  REQUEST_CONFIRMATIONS: parseInt(
-    getEnvVar("CHAIN_LINK_REQUESTCONFIRMATIONS", "3")
-  ),
+  CALLBACK_GAS_LIMIT: parseInt(getEnvVar("CHAIN_LINK_CALLBACKGASLIMIT", "200000")),
+  REQUEST_CONFIRMATIONS: parseInt(getEnvVar("CHAIN_LINK_REQUESTCONFIRMATIONS", "3")),
   NUM_WORDS: parseInt(getEnvVar("CHAIN_LINK_NUMWORDS", "1")),
 };
 
 // Game States - matching contract enum
-export const GAME_STATES = {
-  PENDING: 0,
-  STARTED: 1,
-  COMPLETED_WIN: 2,
-  COMPLETED_LOSS: 3,
-  CANCELLED: 4,
-};
+export const GAME_STATES = Object.freeze({
+  IDLE: 'IDLE',
+  WAITING_FOR_APPROVAL: 'WAITING_FOR_APPROVAL',
+  PLACING_BET: 'PLACING_BET',
+  WAITING_FOR_RESULT: 'WAITING_FOR_RESULT',
+  RESOLVING: 'RESOLVING',
+  COMPLETED: 'COMPLETED',
+  ERROR: 'ERROR'
+});
 
 // Game Configuration
-export const GAME_CONFIG = {
-  MIN_NUMBER: 1,
-  MAX_NUMBER: 6,
-  MIN_BET: ethers.parseEther("1"),
-  MAX_BET: ethers.parseEther("1000"),
+export const GAME_CONFIG = Object.freeze({
+  MIN_BET: ethers.parseEther('0.01'),
+  MAX_BET: ethers.parseEther('100'),
   PAYOUT_MULTIPLIER: 6,
-  GAME_TIMEOUT: 3600, // 1 hour in seconds
-};
+  MAX_NUMBER: 6,
+  POLL_INTERVAL: 5000,
+  DEBOUNCE_DELAY: 500
+});
 
 // Error Messages
 export const ERROR_MESSAGES = {
@@ -77,48 +75,39 @@ export const TIME = {
 };
 
 // Error Codes
-export const ERROR_CODES = {
-  USER_REJECTED: 4001, // MetaMask Tx Signature: User denied transaction signature
-  NETWORK_ERROR: -32603, // Internal JSON-RPC error
-  CHAIN_MISMATCH: 4902, // Chain/network mismatch
-  TIMEOUT: -32008, // Request timeout
-  INSUFFICIENT_FUNDS: -32000, // Insufficient funds for gas * price + value
-  NONCE_TOO_LOW: -32003, // Nonce too low
-  CONTRACT_ERROR: -32016, // Contract execution error
-};
+export const ERROR_CODES = Object.freeze({
+  USER_REJECTED: 4001,
+  WALLET_DISCONNECTED: 4100,
+  CHAIN_MISMATCH: 4902,
+  INSUFFICIENT_BALANCE: 'INSUFFICIENT_BALANCE',
+  GAME_IN_PROGRESS: 'GAME_IN_PROGRESS',
+  INVALID_BET: 'INVALID_BET',
+  NETWORK_ERROR: -32603,
+  TIMEOUT: -32008,
+  VALIDATION_ERROR: 'VALIDATION_ERROR',
+  CONTRACT_ERROR: 'CONTRACT_ERROR'
+});
 
 // Network Configuration
 export const SUPPORTED_CHAIN_ID = 11155111; // Sepolia testnet
 
 // Network Configurations
 export const NETWORKS = {
-  [SUPPORTED_CHAIN_ID]: {
-    // Using SUPPORTED_CHAIN_ID as key
-    chainId: SUPPORTED_CHAIN_ID,
-    name: "Sepolia Test Network",
-    currency: {
-      name: "Sepolia ETH",
-      symbol: "ETH",
-      decimals: 18,
-    },
-    rpcUrls: ["https://rpc.sepolia.org"],
-    blockExplorerUrls: ["https://sepolia.etherscan.io"],
-  },
-  MAINNET: {
-    chainId: 1,
-    name: "Ethereum Mainnet",
-    currency: {
-      name: "Ether",
-      symbol: "ETH",
-      decimals: 18,
-    },
-    rpcUrls: ["https://mainnet.infura.io/v3/YOUR-PROJECT-ID"],
-    blockExplorerUrls: ["https://etherscan.io"],
-  },
+  SEPOLIA: {
+    chainId: 11155111,
+    name: 'Sepolia',
+    rpcUrl: getEnvVar("SEPOLIA_TESTNET_RPC"),
+    explorer: getEnvVar("VITE_EXPLORER_URL"),
+    contracts: {
+      dice: getEnvVar("VITE_DICE_GAME_ADDRESS"),
+      token: getEnvVar("VITE_TOKEN_ADDRESS"),
+      chainlink: getEnvVar("CHAIN_LINK_TOKEN")
+    }
+  }
 };
 
 // Default Network
-export const DEFAULT_NETWORK = NETWORKS[SUPPORTED_CHAIN_ID];
+export const DEFAULT_NETWORK = NETWORKS.SEPOLIA;
 
 // Chain IDs
 export const CHAIN_IDS = {
@@ -129,3 +118,17 @@ export const CHAIN_IDS = {
 export const POLLING_INTERVAL = 5000; // 5 seconds
 
 export const TRANSACTION_TIMEOUT = 30000; // 30 seconds
+
+// Roles
+export const ROLES = {
+  DEFAULT_ADMIN_ROLE: '0x0000000000000000000000000000000000000000000000000000000000000000',
+  MINTER_ROLE: getEnvVar("MINTER_ADDRESS"),
+  BURNER_ROLE: getEnvVar("BURNER_ADDRESS")
+};
+
+// Transaction Types
+export const TRANSACTION_TYPES = Object.freeze({
+  APPROVE: 'APPROVE',
+  PLAY: 'PLAY',
+  RESOLVE: 'RESOLVE'
+});

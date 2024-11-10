@@ -1,12 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { motion } from 'framer-motion';
 import { toast } from 'react-toastify';
+import { ethers } from 'ethers';
 import { Button } from '../common/Button';
 import { Input } from '../common/Input';
 import { useWallet } from '../../contexts/WalletContext';
 import { useAdmin } from '../../hooks/useAdmin';
-import { handleError } from '../utils/errorHandling';
+import { handleError } from '../../utils/errorHandling';
 
 const AdminContainer = styled(motion.div)`
   max-width: 1200px;
@@ -14,106 +15,90 @@ const AdminContainer = styled(motion.div)`
   padding: 2rem;
 `;
 
-const AdminCard = styled.div`
+const AdminSection = styled.div`
   background: ${({ theme }) => theme.surface};
   border-radius: 24px;
   padding: 2rem;
-  box-shadow: ${({ theme }) => theme.shadow.md};
   margin-bottom: 2rem;
+  box-shadow: ${({ theme }) => theme.shadow.md};
 
   h2 {
     font-size: 1.5rem;
-    margin-bottom: 1rem;
-    color: ${({ theme }) => theme.text.primary};
-  }
-`;
-
-const StatDisplay = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1rem;
-  background: ${({ theme }) => theme.background};
-  border-radius: 8px;
-  margin-bottom: 1rem;
-
-  span {
-    color: ${({ theme }) => theme.text.primary};
-    font-weight: 600;
-  }
-`;
-
-const MintSection = styled(AdminCard)`
-  h3 {
     margin-bottom: 1.5rem;
+    color: ${({ theme }) => theme.text.primary};
   }
+`;
 
-  .mint-form {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
+const ActionGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1rem;
+`;
+
+const ActionCard = styled.div`
+  background: ${({ theme }) => theme.background};
+  border-radius: 12px;
+  padding: 1.5rem;
+  border: 1px solid ${({ theme }) => theme.border};
+
+  h3 {
+    margin-bottom: 1rem;
+    font-size: 1.1rem;
   }
 
   .input-group {
-    display: flex;
-    gap: 1rem;
-    align-items: flex-end;
+    margin-bottom: 1rem;
   }
 `;
 
-const AddressInput = styled.div`
-  flex: 1;
-  
+const InputGroup = styled.div`
+  margin-bottom: 1rem;
+
   label {
     display: block;
-    color: ${({ theme }) => theme.text.secondary};
-    font-size: 0.875rem;
     margin-bottom: 0.5rem;
-  }
-
-  input {
-    width: 100%;
-    padding: 0.75rem 1rem;
-    border: 2px solid ${({ theme, $error }) => 
-      $error ? theme.error : theme.border};
-    border-radius: 12px;
-    background: ${({ theme }) => theme.background};
-    color: ${({ theme }) => theme.text.primary};
-    font-size: 1rem;
-
-    &:focus {
-      outline: none;
-      border-color: ${({ theme }) => theme.primary};
-      box-shadow: 0 0 0 4px ${({ theme }) => theme.primary}20;
-    }
+    color: ${({ theme }) => theme.text.secondary};
   }
 `;
 
 export function AdminPanel() {
   const { isConnected, isAdmin } = useWallet();
-  const { 
-    contractStats,
-    isMinting,
+  const {
     mintTokens,
-    refreshStats
+    setHouseEdge,
+    withdrawFunds,
+    pauseGame,
+    unpauseGame,
+    setHistorySize,
+    setCallbackGasLimit,
+    setCoordinator,
+    revokeTokenRole,
+    grantTokenRole,
+    isLoading,
+    error
   } = useAdmin();
 
-  const [mintAddress, setMintAddress] = useState('');
-  const [mintAmount, setMintAmount] = useState('');
-  const [addressError, setAddressError] = useState('');
+  const [inputs, setInputs] = useState({
+    mintAddress: '',
+    mintAmount: '',
+    withdrawAmount: '',
+    houseEdge: '',
+    historySize: '',
+    callbackGasLimit: '',
+    coordinatorAddress: '',
+    revokeAddress: '',
+    grantAddress: '',
+    roleType: 'MINTER_ROLE'
+  });
 
-  const handleMint = async () => {
-    if (!mintAddress || !mintAmount) {
-      toast.error('Please fill in all fields');
-      return;
-    }
+  const handleInputChange = (name, value) => {
+    setInputs(prev => ({ ...prev, [name]: value }));
+  };
 
+  const handleAction = async (action, ...args) => {
     try {
-      await mintTokens(mintAddress, mintAmount);
-      toast.success('Tokens minted successfully!');
-      setMintAddress('');
-      setMintAmount('');
-      refreshStats();
+      await action(...args);
+      toast.success('Action completed successfully!');
     } catch (error) {
       const { message } = handleError(error);
       toast.error(message);
@@ -123,10 +108,10 @@ export function AdminPanel() {
   if (!isConnected || !isAdmin) {
     return (
       <AdminContainer>
-        <AdminCard>
+        <AdminSection>
           <h2>Admin Access Required</h2>
           <p>Please connect with an admin wallet to access this section.</p>
-        </AdminCard>
+        </AdminSection>
       </AdminContainer>
     );
   }
@@ -137,58 +122,197 @@ export function AdminPanel() {
       animate={{ opacity: 1 }}
       transition={{ duration: 0.3 }}
     >
-      <MintSection>
+      <AdminSection>
         <h2>Token Management</h2>
-        
-        <div className="mint-form">
-          <div className="input-group">
-            <AddressInput $error={addressError}>
-              <label>Recipient Address</label>
-              <input
-                type="text"
-                value={mintAddress}
-                onChange={(e) => {
-                  setMintAddress(e.target.value);
-                  setAddressError('');
-                }}
+        <ActionGrid>
+          <ActionCard>
+            <h3>Mint Tokens</h3>
+            <InputGroup>
+              <Input
+                label="Recipient Address"
+                value={inputs.mintAddress}
+                onChange={(e) => handleInputChange('mintAddress', e.target.value)}
                 placeholder="0x..."
               />
-            </AddressInput>
-            <Input
-              label="Amount"
-              type="number"
-              value={mintAmount}
-              onChange={(e) => setMintAmount(e.target.value)}
-              placeholder="100"
-              style={{ width: '200px' }}
-            />
+            </InputGroup>
+            <InputGroup>
+              <Input
+                label="Amount"
+                type="number"
+                value={inputs.mintAmount}
+                onChange={(e) => handleInputChange('mintAmount', e.target.value)}
+                placeholder="100"
+              />
+            </InputGroup>
             <Button
-              $variant="primary"
-              onClick={handleMint}
-              disabled={isMinting}
-              $loading={isMinting}
+              onClick={() => handleAction(mintTokens, inputs.mintAddress, inputs.mintAmount)}
+              disabled={isLoading}
             >
               Mint Tokens
             </Button>
-          </div>
-        </div>
-      </MintSection>
+          </ActionCard>
 
-      <AdminCard>
-        <h2>Contract Statistics</h2>
-        <StatDisplay>
-          <span>Total Supply</span>
-          <span>{contractStats.totalSupply || '0'} DICE</span>
-        </StatDisplay>
-        <StatDisplay>
-          <span>Total Games Played</span>
-          <span>{contractStats.totalGames || '0'}</span>
-        </StatDisplay>
-        <StatDisplay>
-          <span>Total Volume</span>
-          <span>{contractStats.totalVolume || '0'} DICE</span>
-        </StatDisplay>
-      </AdminCard>
+          <ActionCard>
+            <h3>Token Roles</h3>
+            <InputGroup>
+              <Input
+                label="Address"
+                value={inputs.grantAddress}
+                onChange={(e) => handleInputChange('grantAddress', e.target.value)}
+                placeholder="0x..."
+              />
+            </InputGroup>
+            <InputGroup>
+              <select
+                value={inputs.roleType}
+                onChange={(e) => handleInputChange('roleType', e.target.value)}
+                style={{ width: '100%', padding: '0.5rem' }}
+              >
+                <option value="MINTER_ROLE">Minter Role</option>
+                <option value="BURNER_ROLE">Burner Role</option>
+              </select>
+            </InputGroup>
+            <Button
+              onClick={() => handleAction(grantTokenRole, inputs.roleType, inputs.grantAddress)}
+              disabled={isLoading}
+              style={{ marginRight: '1rem' }}
+            >
+              Grant Role
+            </Button>
+            <Button
+              onClick={() => handleAction(revokeTokenRole, inputs.roleType, inputs.grantAddress)}
+              disabled={isLoading}
+              $variant="danger"
+            >
+              Revoke Role
+            </Button>
+          </ActionCard>
+        </ActionGrid>
+      </AdminSection>
+
+      <AdminSection>
+        <h2>Game Configuration</h2>
+        <ActionGrid>
+          <ActionCard>
+            <h3>House Edge</h3>
+            <InputGroup>
+              <Input
+                label="New House Edge (%)"
+                type="number"
+                value={inputs.houseEdge}
+                onChange={(e) => handleInputChange('houseEdge', e.target.value)}
+                placeholder="5"
+              />
+            </InputGroup>
+            <Button
+              onClick={() => handleAction(setHouseEdge, inputs.houseEdge)}
+              disabled={isLoading}
+            >
+              Update House Edge
+            </Button>
+          </ActionCard>
+
+          <ActionCard>
+            <h3>History Size</h3>
+            <InputGroup>
+              <Input
+                label="New History Size"
+                type="number"
+                value={inputs.historySize}
+                onChange={(e) => handleInputChange('historySize', e.target.value)}
+                placeholder="100"
+              />
+            </InputGroup>
+            <Button
+              onClick={() => handleAction(setHistorySize, inputs.historySize)}
+              disabled={isLoading}
+            >
+              Update History Size
+            </Button>
+          </ActionCard>
+
+          <ActionCard>
+            <h3>VRF Configuration</h3>
+            <InputGroup>
+              <Input
+                label="Callback Gas Limit"
+                type="number"
+                value={inputs.callbackGasLimit}
+                onChange={(e) => handleInputChange('callbackGasLimit', e.target.value)}
+                placeholder="200000"
+              />
+            </InputGroup>
+            <Button
+              onClick={() => handleAction(setCallbackGasLimit, inputs.callbackGasLimit)}
+              disabled={isLoading}
+            >
+              Update Gas Limit
+            </Button>
+          </ActionCard>
+
+          <ActionCard>
+            <h3>VRF Coordinator</h3>
+            <InputGroup>
+              <Input
+                label="Coordinator Address"
+                value={inputs.coordinatorAddress}
+                onChange={(e) => handleInputChange('coordinatorAddress', e.target.value)}
+                placeholder="0x..."
+              />
+            </InputGroup>
+            <Button
+              onClick={() => handleAction(setCoordinator, inputs.coordinatorAddress)}
+              disabled={isLoading}
+            >
+              Update Coordinator
+            </Button>
+          </ActionCard>
+        </ActionGrid>
+      </AdminSection>
+
+      <AdminSection>
+        <h2>Game Controls</h2>
+        <ActionGrid>
+          <ActionCard>
+            <h3>Game State</h3>
+            <Button
+              onClick={() => handleAction(pauseGame)}
+              disabled={isLoading}
+              style={{ marginRight: '1rem' }}
+              $variant="warning"
+            >
+              Pause Game
+            </Button>
+            <Button
+              onClick={() => handleAction(unpauseGame)}
+              disabled={isLoading}
+              $variant="success"
+            >
+              Unpause Game
+            </Button>
+          </ActionCard>
+
+          <ActionCard>
+            <h3>Withdraw Funds</h3>
+            <InputGroup>
+              <Input
+                label="Amount"
+                type="number"
+                value={inputs.withdrawAmount}
+                onChange={(e) => handleInputChange('withdrawAmount', e.target.value)}
+                placeholder="100"
+              />
+            </InputGroup>
+            <Button
+              onClick={() => handleAction(withdrawFunds, inputs.withdrawAmount)}
+              disabled={isLoading}
+              $variant="danger"
+            >
+              Withdraw Funds
+            </Button>
+          </ActionCard>
+        </ActionGrid>
+      </AdminSection>
     </AdminContainer>
   );
 } 

@@ -190,6 +190,45 @@ const LoadingOverlay = styled(motion.div)`
   border-radius: 1rem;
 `;
 
+const TokenomicsSection = styled(motion.section)`
+  margin: 4rem 0;
+  padding: 0 1rem;
+  text-align: center;
+
+  h2 {
+    font-size: 2rem;
+    margin-bottom: 2rem;
+    color: ${({ theme }) => theme.text.primary};
+  }
+`;
+
+const TokenomicsGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1.5rem;
+`;
+
+const TokenomicsCard = styled(motion.div)`
+  background: ${({ theme }) => theme.surface};
+  padding: 2rem;
+  border-radius: 1rem;
+  box-shadow: ${({ theme }) => theme.shadow.md};
+  border: 1px solid ${({ theme }) => theme.border};
+
+  h3 {
+    color: ${({ theme }) => theme.text.secondary};
+    margin-bottom: 1rem;
+  }
+
+  p {
+    font-size: 1.5rem;
+    font-weight: bold;
+    background: ${({ theme }) => theme.gradients.primary};
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+`;
+
 export function HomePage() {
   const { isConnected, tokenContract: token, diceContract: dice } = useWallet();
   const [stats, setStats] = useState(null);
@@ -199,24 +238,35 @@ export function HomePage() {
     const fetchStats = async () => {
       if (!isConnected || !token || !dice) {
         setStats(null);
+        setIsLoading(false);
         return;
       }
 
       try {
         setIsLoading(true);
         
+        const totalSupplyPromise = token.totalSupply?.() || Promise.resolve(BigInt(0));
+        const diceBalancePromise = token.balanceOf?.(dice?.address || ethers.ZeroAddress) || Promise.resolve(BigInt(0));
+        const totalGamesPromise = dice.totalGamesPlayed?.() || Promise.resolve(BigInt(0));
+        const totalPayoutPromise = dice.totalPayoutAmount?.() || Promise.resolve(BigInt(0));
+
         const [totalSupply, diceBalance, totalGames, totalPayout] = await Promise.all([
-          token.totalSupply?.() || Promise.resolve(0),
-          token.balanceOf?.(dice?.address || ethers.ZeroAddress) || Promise.resolve(0),
-          dice.totalGamesPlayed?.() || Promise.resolve(0),
-          dice.totalPayoutAmount?.() || Promise.resolve(0),
+          totalSupplyPromise,
+          diceBalancePromise,
+          totalGamesPromise,
+          totalPayoutPromise,
         ]);
 
+        if (totalSupply === undefined || diceBalance === undefined || 
+            totalGames === undefined || totalPayout === undefined) {
+          throw new Error("Invalid data received from contracts");
+        }
+
         setStats({
-          totalSupply: formatAmount(totalSupply || 0),
-          diceBalance: formatAmount(diceBalance || 0),
-          totalGames: formatNumber(totalGames?.toString() || '0'),
-          totalPayout: formatAmount(totalPayout || 0),
+          totalSupply: formatAmount(totalSupply),
+          diceBalance: formatAmount(diceBalance),
+          totalGames: formatNumber(totalGames.toString()),
+          totalPayout: formatAmount(totalPayout),
         });
       } catch (error) {
         console.error("Error fetching stats:", error);
@@ -229,35 +279,11 @@ export function HomePage() {
 
     fetchStats();
     const interval = setInterval(fetchStats, 30000);
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      setIsLoading(false);
+    };
   }, [isConnected, token, dice]);
-
-  const games = [
-    {
-      id: "dice",
-      name: "Dice Game",
-      description: "Roll the dice and multiply your tokens! Choose your number and place your bet.",
-      icon: "🎲",
-      path: "/game",
-      live: true,
-    },
-    {
-      id: "roulette",
-      name: "Roulette",
-      description: "Classic casino roulette with multiple betting options. Coming soon!",
-      icon: "🎰",
-      path: "/roulette",
-      live: false,
-    },
-    {
-      id: "blackjack",
-      name: "Blackjack",
-      description: "Test your luck against the dealer in this classic card game. Coming soon!",
-      icon: "🃏",
-      path: "/blackjack",
-      live: false,
-    },
-  ];
 
   return (
     <HomeContainer
@@ -278,25 +304,25 @@ export function HomePage() {
           animate={{ y: 0, opacity: 1 }}
           transition={{ delay: 0.2 }}
         >
-          Decentralized Casino
+          GameX
         </motion.h1>
         <motion.p
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ delay: 0.3 }}
         >
-          Experience provably fair gaming powered by blockchain technology. 
-          Play, win, and earn crypto tokens in a transparent environment.
+          The next generation gaming token with real utility. 
+          Play games and earn rewards - all powered by GameX.
         </motion.p>
         <CTAButton
           as={motion(Link)}
-          to="/game"
+          to="/token"
           $variant="primary"
           animate={{ opacity: 1 }}
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
         >
-          Start Playing Now
+          Buy GAMEX
         </CTAButton>
       </Hero>
 
@@ -307,37 +333,46 @@ export function HomePage() {
           transition={{ delay: 0.4 }}
         >
           {isConnected ? (
-            stats ? (
+            isLoading ? (
+              <StatCard style={{ gridColumn: '1 / -1', minHeight: '200px' }}>
+                <Loading size="medium" message="Loading token statistics..." />
+              </StatCard>
+            ) : stats ? (
               <>
                 <StatCard>
                   <h3>Total Supply</h3>
-                  <p>{stats.totalSupply} DICE</p>
+                  <p>{stats.totalSupply} GAMEX</p>
                 </StatCard>
                 <StatCard>
-                  <h3>Prize Pool</h3>
-                  <p>{stats.diceBalance} DICE</p>
+                  <h3>Staking Pool</h3>
+                  <p>{stats.diceBalance} GAMEX</p>
                 </StatCard>
                 <StatCard>
-                  <h3>Total Games</h3>
-                  <p>{stats.totalGames}</p>
+                  <h3>Token Price</h3>
+                  <p>$0.XX USD</p>
                 </StatCard>
                 <StatCard>
-                  <h3>Total Payouts</h3>
-                  <p>{stats.totalPayout} DICE</p>
+                  <h3>Market Cap</h3>
+                  <p>$XXX,XXX USD</p>
                 </StatCard>
               </>
             ) : (
-              <LoadingOverlay
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-              >
-                <Loading message="Loading stats..." />
-              </LoadingOverlay>
+              <StatCard style={{ gridColumn: '1 / -1' }}>
+                <h3>Error Loading Stats</h3>
+                <p>Unable to fetch game statistics. Please try again later.</p>
+                <Button 
+                  onClick={() => window.location.reload()} 
+                  $variant="secondary"
+                  style={{ marginTop: '1rem' }}
+                >
+                  Retry
+                </Button>
+              </StatCard>
             )
           ) : (
-            <StatCard>
+            <StatCard style={{ gridColumn: '1 / -1' }}>
               <h3>Connect Wallet</h3>
-              <p>Connect your wallet to view game statistics</p>
+              <p>Connect your wallet to view token statistics and start using GameX</p>
             </StatCard>
           )}
         </StatsGrid>
@@ -348,42 +383,64 @@ export function HomePage() {
         animate={{ y: 0, opacity: 1 }}
         transition={{ delay: 0.5 }}
       >
-        <h2>Available Games</h2>
+        <h2>Token Utilities</h2>
         <GamesGrid>
-          {games.map((game) => (
-            <motion.div
-              key={game.id}
-              as={game.live ? Link : 'div'}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              whileHover={game.live ? { scale: 1.02 } : undefined}
-              transition={{ duration: 0.2 }}
-            >
-              <GameItem $disabled={!game.live}>
-                <GameStatus $live={game.live}>
-                  {game.live ? "Live" : "Coming Soon"}
-                </GameStatus>
-                <GameContent>
-                  <div className="icon">{game.icon}</div>
-                  <h3>{game.name}</h3>
-                  <p>{game.description}</p>
-                  <PlayButton
-                    $variant={game.live ? "primary" : "secondary"}
-                    disabled={!game.live}
-                    onClick={(e) => {
-                      if (!game.live) {
-                        e.preventDefault();
-                      }
-                    }}
-                  >
-                    {game.live ? "Play Now" : "Coming Soon"}
-                  </PlayButton>
-                </GameContent>
-              </GameItem>
-            </motion.div>
-          ))}
+          <GameItem>
+            <GameContent>
+              <div className="icon">💰</div>
+              <h3>Staking</h3>
+              <p>Stake your GameX tokens to earn passive rewards and exclusive benefits.</p>
+              <PlayButton as={Link} to="/staking" $variant="primary">
+                Stake Now
+              </PlayButton>
+            </GameContent>
+          </GameItem>
+
+          <GameItem>
+            <GameContent>
+              <div className="icon">🎮</div>
+              <h3>Gaming</h3>
+              <p>Use GameX tokens to play games and win more tokens through skilled gameplay.</p>
+              <PlayButton as={Link} to="/games" $variant="primary">
+                Play Games
+              </PlayButton>
+            </GameContent>
+          </GameItem>
+
+          <GameItem>
+            <GameContent>
+              <div className="icon">🏛️</div>
+              <h3>Governance</h3>
+              <p>Participate in GameX DAO and vote on important protocol decisions.</p>
+              <PlayButton as={Link} to="/governance" $variant="primary">
+                View Proposals
+              </PlayButton>
+            </GameContent>
+          </GameItem>
         </GamesGrid>
       </GamesSection>
+
+      <TokenomicsSection>
+        <h2>GameX Tokenomics</h2>
+        <TokenomicsGrid>
+          <TokenomicsCard>
+            <h3>Total Supply</h3>
+            <p>1,000,000,000 GAMEX</p>
+          </TokenomicsCard>
+          <TokenomicsCard>
+            <h3>Staking APY</h3>
+            <p>Up to 25% APY</p>
+          </TokenomicsCard>
+          <TokenomicsCard>
+            <h3>Gaming Rewards</h3>
+            <p>15% of Supply</p>
+          </TokenomicsCard>
+          <TokenomicsCard>
+            <h3>DAO Treasury</h3>
+            <p>10% of Supply</p>
+          </TokenomicsCard>
+        </TokenomicsGrid>
+      </TokenomicsSection>
     </HomeContainer>
   );
 }
