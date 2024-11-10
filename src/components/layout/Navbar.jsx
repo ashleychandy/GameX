@@ -93,18 +93,20 @@ const NavLink = ({ to, children, $active }) => (
 
 export function Navbar() {
   const location = useLocation();
-  const { isConnected, address, balance, connectWallet, disconnectWallet } = useWallet();
-  const [isConnecting, setIsConnecting] = useState(false);
+  const { isConnected, isConnecting, address, balance, connectWallet, disconnectWallet } = useWallet();
 
   const handleConnect = async () => {
     try {
-      setIsConnecting(true);
       await connectWallet();
     } catch (error) {
-      console.error('Connection error:', error);
-    } finally {
-      setIsConnecting(false);
+      const { message } = handleError(error);
+      toast.error(message);
     }
+  };
+
+  const handleDisconnect = () => {
+    disconnectWallet();
+    toast.success('Wallet disconnected');
   };
 
   const handleAddressClick = () => {
@@ -143,7 +145,7 @@ export function Navbar() {
               </Address>
               <Button
                 $variant="outline"
-                onClick={disconnectWallet}
+                onClick={handleDisconnect}
                 disabled={isConnecting}
               >
                 Disconnect

@@ -1,10 +1,8 @@
 import React, { useEffect } from 'react';
 import styled from 'styled-components';
-import { motion } from 'framer-motion';
 import { Outlet, useLocation } from 'react-router-dom';
 import { Navbar } from './Navbar';
 import { Footer } from './Footer';
-import diceLogo from '/dice-logo.svg';
 import { getRouteMetadata } from '../../routes';
 
 const LayoutContainer = styled.div`
@@ -21,12 +19,6 @@ const Header = styled.header`
   padding: 1rem 2rem;
   background: ${({ theme }) => theme.surface};
   box-shadow: ${({ theme }) => theme.shadow.sm};
-`;
-
-const Logo = styled(motion.img)`
-  height: 2.5rem;
-  margin-right: 1rem;
-  color: ${({ theme }) => theme.primary};
 `;
 
 const Title = styled.h1`
@@ -48,20 +40,14 @@ export function Layout() {
   useEffect(() => {
     const { title } = getRouteMetadata(location.pathname);
     if (title) {
-      document.title = `${title} | Crypto Dice Game`;
+      document.title = `${title} | GameX`;
     }
   }, [location]);
 
   return (
     <LayoutContainer>
       <Header>
-        <Logo 
-          src={diceLogo} 
-          alt="Crypto Dice Game"
-          whileHover={{ rotate: 360 }}
-          transition={{ duration: 0.5 }}
-        />
-        <Title>Crypto Dice Game</Title>
+        <Title>GameX</Title>
       </Header>
       <Navbar />
       <Main>

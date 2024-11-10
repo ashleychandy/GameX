@@ -1,48 +1,51 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { ethers } from 'ethers';
-import { contracts } from '../config';
+import { useWallet } from '../contexts/WalletContext';
+import { CONTRACTS } from '../utils/constants';
+import DiceABI from '../abi/Dice.json';
+import TokenABI from '../abi/Token.json';
+import { handleError } from '../utils/errorHandling';
 
-export function useContract(contractName) {
+const CONTRACT_TYPES = {
+  dice: {
+    address: CONTRACTS.DICE,
+    abi: DiceABI.abi
+  },
+  token: {
+    address: CONTRACTS.TOKEN,
+    abi: TokenABI.abi
+  }
+};
+
+export function useContract(contractType) {
   const [contract, setContract] = useState(null);
   const [isValid, setIsValid] = useState(false);
+  const { provider, signer } = useWallet();
+
+  const initializeContract = useCallback(async () => {
+    if (!provider || !signer || !CONTRACT_TYPES[contractType]) {
+      setIsValid(false);
+      return;
+    }
+
+    try {
+      const { address, abi } = CONTRACT_TYPES[contractType];
+      if (!address || !abi) {
+        throw new Error(`Invalid contract configuration for ${contractType}`);
+      }
+
+      const contract = new ethers.Contract(address, abi, signer);
+      setContract(contract);
+      setIsValid(true);
+    } catch (error) {
+      console.error(`Failed to initialize ${contractType} contract:`, error);
+      setIsValid(false);
+    }
+  }, [provider, signer, contractType]);
 
   useEffect(() => {
-    const initializeContract = async () => {
-      const { address, abi } = contracts[contractName];
-
-      if (!address || !abi) {
-        console.error(`Invalid contract config for ${contractName}`);
-        setContract(null);
-        setIsValid(false);
-        return;
-      }
-
-      try {
-        const provider = new ethers.providers.Web3Provider(window.ethereum);
-        const signer = provider.getSigner();
-        const newContract = new ethers.Contract(address, abi, signer);
-
-        const code = await provider.getCode(address);
-        const valid = code !== '0x' && code !== '0x0';
-
-        if (!valid) {
-          console.error(`No contract code found at ${address}`);
-          setContract(null);
-          setIsValid(false);
-          return;
-        }
-
-        setContract(newContract);
-        setIsValid(true);
-      } catch (error) {
-        console.error(`Error initializing ${contractName} contract:`, error);
-        setContract(null);
-        setIsValid(false);
-      }
-    };
-
     initializeContract();
-  }, [contractName]);
+  }, [initializeContract]);
 
   return { contract, isValid };
 } 

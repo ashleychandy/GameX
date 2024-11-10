@@ -1,9 +1,9 @@
 {
-  "short_name": "Crypto Dice",
-  "name": "Crypto Dice Game",
+  "short_name": "GameX",
+  "name": "GameX Platform",
   "icons": [
     {
-      "src": "dice-logo.svg",
+      "src": "gamex-logo.svg",
       "sizes": "64x64 32x32 24x24 16x16",
       "type": "image/svg+xml"
     }

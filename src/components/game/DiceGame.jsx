@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import styled from "styled-components";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "react-toastify";
@@ -6,7 +6,6 @@ import { ethers } from 'ethers';
 import { Button } from "../common/Button";
 import { NumberSelector } from "./NumberSelector";
 import { AmountInput } from "./AmountInput";
-import { handleError } from "../../utils/helpers";
 import { useGame } from "../../hooks/useGame";
 import { useWallet } from "../../contexts/WalletContext";
 import { GameResults } from "./GameResults";
@@ -15,8 +14,11 @@ import { Loading } from "../common/Loading";
 import { GameCard } from "./GameCard";
 import { GameProgress } from "./GameProgress";
 import { DiceRoll } from "./DiceRoll";
+import { ErrorHandler } from "../common/ErrorHandler";
 import { useTokenApproval } from "../../hooks/useTokenApproval";
 import { formatAmount } from "../../utils/helpers";
+import { validateBetAmount } from "../../utils/validation";
+import { GAME_CONFIG, GAME_STATES } from "../../utils/constants";
 
 const GameContainer = styled(motion.div)`
   max-width: 1200px;
@@ -134,51 +136,97 @@ const StatsContainer = styled(GameCard)`
 
 export function DiceGame() {
   const { isConnected, address, balance } = useWallet();
-  const { gameData, playDice, resolveGame, isLoading, error } = useGame();
-  const { hasApproval, approveTokens, isApproving } = useTokenApproval();
+  const { gameData, playDice, resolveGame, isLoading, error, resetGame } = useGame();
+  const { hasApproval, approveTokens, isApproving, checkAllowance } = useTokenApproval();
+  
+  const [betAmount, setBetAmount] = useState("");
+  const [selectedNumber, setSelectedNumber] = useState(null);
 
-  const quickAmounts = [10, 50, 100, 500];
+  // Reset game state when address changes
+  useEffect(() => {
+    setBetAmount("");
+    setSelectedNumber(null);
+    resetGame();
+  }, [address, resetGame]);
 
-  const handleQuickAmount = (amount) => {
-    setBetAmount(amount.toString());
+  // Memoized values
+  const canPlay = useMemo(() => {
+    if (!isConnected || !betAmount || isLoading || isApproving) return false;
+    try {
+      const amount = ethers.parseEther(betAmount);
+      return amount.gt(0) && amount.lte(balance);
+    } catch {
+      return false;
+    }
+  }, [isConnected, betAmount, balance, isLoading, isApproving]);
+
+  const potentialWinnings = useMemo(() => {
+    if (!betAmount) return "0";
+    try {
+      return (Number(betAmount) * GAME_CONFIG.PAYOUT_MULTIPLIER).toString();
+    } catch {
+      return "0";
+    }
+  }, [betAmount]);
+
+  const isGameActive = useMemo(() => 
+    gameData?.currentGame?.isActive && 
+    gameData.currentGame.status !== GAME_STATES.COMPLETED,
+    [gameData]
+  );
+
+  const canResolve = useMemo(() => 
+    isGameActive && gameData.currentGame.status === GAME_STATES.WAITING_FOR_RESULT,
+    [isGameActive, gameData]
+  );
+
+  // Handlers
+  const handleBetAmountChange = (value) => {
+    try {
+      if (value) {
+        validateBetAmount(value, balance);
+      }
+      setBetAmount(value);
+    } catch (error) {
+      toast.error(error.message);
+    }
   };
 
-  const handlePlay = async (number, amount) => {
-    if (!isConnected) {
-      toast.error('Please connect your wallet');
-      return;
-    }
-
+  const handlePlay = async (number) => {
+    if (!canPlay) return;
+    
     try {
-      if (!hasApproval) {
-        await approveTokens(amount);
+      // Check and get approval if needed
+      const hasCurrentApproval = await checkAllowance(betAmount);
+      if (!hasCurrentApproval) {
+        await approveTokens(betAmount);
       }
-      await playDice(number, amount);
+      
+      await playDice(number, betAmount);
+      setSelectedNumber(number);
     } catch (error) {
-      toast.error(formatErrorMessage(error));
+      const { message } = handleError(error);
+      toast.error(message);
     }
   };
 
   const handleResolve = async () => {
+    if (!canResolve) return;
+    
     try {
       await resolveGame();
     } catch (error) {
-      toast.error(formatErrorMessage(error));
+      const { message } = handleError(error);
+      toast.error(message);
     }
   };
 
-  // Add check for pending VRF request
-  const canResolve = gameData?.currentGame?.isActive && 
-                    gameData?.requestDetails?.requestFulfilled;
-
-  const potentialWinnings = gameData?.currentGame?.amount ? (parseFloat(gameData.currentGame.amount) * 6).toFixed(2) : "0.00";
+  if (error) {
+    return <ErrorHandler error={error} />;
+  }
 
   return (
-    <GameContainer
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: 20 }}
-    >
+    <GameContainer>
       <MainSection>
         <GameHeader>
           <h1>Roll the Dice</h1>
@@ -186,21 +234,24 @@ export function DiceGame() {
         </GameHeader>
 
         <NumberSelector
-          selectedNumber={gameData?.currentGame?.chosenNumber}
+          selectedNumber={selectedNumber}
           onSelect={handlePlay}
-          disabled={isLoading || isApproving}
+          disabled={!canPlay || isGameActive}
         />
 
         <AnimatePresence mode="wait">
-          {gameData?.currentGame?.isActive && (
-            <GameProgress game={gameData.currentGame} />
+          {isGameActive && (
+            <GameProgress 
+              gameState={gameData.currentGame.status}
+              requestDetails={gameData.requestDetails}
+            />
           )}
         </AnimatePresence>
 
         <DiceRoll
           rolling={isLoading}
-          result={gameData?.currentGame?.result}
-          won={gameData?.currentGame?.result > 0}
+          result={gameData?.currentGame?.rolledNumber}
+          won={gameData?.currentGame?.won}
         />
 
         <GameControls>
@@ -215,40 +266,23 @@ export function DiceGame() {
             </div>
           </BetInfo>
 
-          <QuickAmounts>
-            {quickAmounts.map(amount => (
-              <QuickAmount
-                key={amount}
-                onClick={() => handleQuickAmount(amount)}
-                disabled={isLoading || isApproving}
-              >
-                {amount} DICE
-              </QuickAmount>
-            ))}
-          </QuickAmounts>
-
           <AmountInput
-            value={gameData?.currentGame?.amount}
-            onChange={handlePlay}
+            value={betAmount}
+            onChange={handleBetAmountChange}
             max={balance}
-            disabled={isLoading || isApproving}
+            disabled={isLoading || isApproving || isGameActive}
           />
 
-          <Button
-            $variant="primary"
-            $fullWidth
-            disabled={!gameData?.currentGame?.chosenNumber || !gameData?.currentGame?.amount || isLoading || isApproving}
-            onClick={handlePlay}
-          >
-            {isApproving ? "Approving..." : isLoading ? "Rolling..." : "Roll Dice"}
-          </Button>
-
-          <Button 
-            onClick={handleResolve}
-            disabled={!canResolve || isLoading}
-          >
-            Resolve Game
-          </Button>
+          {canResolve && (
+            <Button 
+              onClick={handleResolve}
+              disabled={isLoading}
+              $variant="primary"
+              $fullWidth
+            >
+              {isLoading ? "Resolving..." : "Resolve Game"}
+            </Button>
+          )}
         </GameControls>
       </MainSection>
 

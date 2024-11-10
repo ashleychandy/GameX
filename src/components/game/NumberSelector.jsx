@@ -1,54 +1,59 @@
 import React from 'react';
 import styled from 'styled-components';
 import { motion } from 'framer-motion';
+import { GAME_CONFIG } from '../../utils/constants';
 
-const SelectorContainer = styled.div`
+const Container = styled.div`
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 1rem;
-  margin: 2rem 0;
+  padding: 2rem;
+  max-width: 500px;
+  margin: 0 auto;
 `;
 
 const NumberButton = styled(motion.button)`
   aspect-ratio: 1;
-  border-radius: 12px;
   background: ${({ $selected, theme }) => 
-    $selected ? theme.gradients.primary : theme.surface};
+    $selected ? theme.primary : theme.surface};
+  border: 2px solid ${({ $selected, theme }) => 
+    $selected ? theme.primary : theme.border};
+  border-radius: 16px;
   color: ${({ $selected, theme }) => 
     $selected ? theme.text.inverse : theme.text.primary};
-  font-size: 1.5rem;
+  font-size: 2rem;
   font-weight: bold;
-  border: 2px solid ${({ $selected, theme }) => 
-    $selected ? 'transparent' : theme.border};
-  cursor: pointer;
+  cursor: ${({ disabled }) => disabled ? 'not-allowed' : 'pointer'};
+  opacity: ${({ disabled }) => disabled ? 0.5 : 1};
   transition: all 0.2s ease;
-  
+
   &:hover:not(:disabled) {
     transform: translateY(-2px);
-    box-shadow: ${({ theme }) => theme.shadow.md};
+    border-color: ${({ theme }) => theme.primary};
   }
-  
-  &:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
+
+  &:active:not(:disabled) {
+    transform: translateY(0);
   }
 `;
 
 export function NumberSelector({ selectedNumber, onSelect, disabled }) {
+  const numbers = Array.from({ length: GAME_CONFIG.MAX_NUMBER }, (_, i) => i + 1);
+
   return (
-    <SelectorContainer>
-      {[1, 2, 3, 4, 5, 6].map((number) => (
+    <Container>
+      {numbers.map(number => (
         <NumberButton
           key={number}
           $selected={selectedNumber === number}
-          onClick={() => onSelect(number)}
           disabled={disabled}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
+          onClick={() => onSelect(number)}
+          whileHover={{ scale: disabled ? 1 : 1.05 }}
+          whileTap={{ scale: disabled ? 1 : 0.95 }}
         >
           {number}
         </NumberButton>
       ))}
-    </SelectorContainer>
+    </Container>
   );
 } 

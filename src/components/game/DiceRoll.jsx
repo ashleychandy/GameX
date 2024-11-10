@@ -1,133 +1,119 @@
 import React from 'react';
 import styled from 'styled-components';
 import { motion, AnimatePresence } from 'framer-motion';
-import PropTypes from 'prop-types';
+import diceSprite from '../../assets/dice-sprite.svg';
 
 const DiceContainer = styled(motion.div)`
-  perspective: 1200px;
-  width: 120px;
-  height: 120px;
-  margin: 2rem auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  position: relative;
 `;
 
-const Dice = styled(motion.div)`
+const DiceWrapper = styled(motion.div)`
+  width: 100px;
+  height: 100px;
+  position: relative;
+  perspective: 1000px;
+`;
+
+const DiceFace = styled(motion.div)`
   width: 100%;
   height: 100%;
-  position: relative;
+  background-image: url(${diceSprite});
+  background-size: 600px 100px;
+  background-position: ${({ $face }) => `${($face - 1) * -100}px 0`};
+  border-radius: 16px;
+  box-shadow: ${({ theme }) => theme.shadow.md};
   transform-style: preserve-3d;
-  
-  .face {
-    position: absolute;
-    width: 100%;
-    height: 100%;
-    border-radius: 16px;
-    border: 2px solid ${({ theme }) => theme.border};
-    background: ${({ theme }) => theme.surface};
-    display: grid;
-    grid-template: repeat(3, 1fr) / repeat(3, 1fr);
-    padding: 8px;
-    box-shadow: inset 0 0 15px rgba(0,0,0,0.1);
-  }
-  
-  .dot {
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    background: ${({ theme }) => theme.text.primary};
-    place-self: center;
-  }
 `;
 
-const DiceFace = ({ number = 1 }) => {
-  const getDotPositions = (num) => {
-    switch (num) {
-      case 1:
-        return [{ gridArea: '2 / 2' }];
-      case 2:
-        return [
-          { gridArea: '1 / 1' },
-          { gridArea: '3 / 3' }
-        ];
-      case 3:
-        return [
-          { gridArea: '1 / 1' },
-          { gridArea: '2 / 2' },
-          { gridArea: '3 / 3' }
-        ];
-      case 4:
-        return [
-          { gridArea: '1 / 1' },
-          { gridArea: '1 / 3' },
-          { gridArea: '3 / 1' },
-          { gridArea: '3 / 3' }
-        ];
-      case 5:
-        return [
-          { gridArea: '1 / 1' },
-          { gridArea: '1 / 3' },
-          { gridArea: '2 / 2' },
-          { gridArea: '3 / 1' },
-          { gridArea: '3 / 3' }
-        ];
-      case 6:
-        return [
-          { gridArea: '1 / 1' },
-          { gridArea: '2 / 1' },
-          { gridArea: '3 / 1' },
-          { gridArea: '1 / 3' },
-          { gridArea: '2 / 3' },
-          { gridArea: '3 / 3' }
-        ];
-      default:
-        return [];
-    }
-  };
+const ResultText = styled(motion.p)`
+  margin-top: 1rem;
+  font-size: 1.2rem;
+  font-weight: bold;
+  color: ${({ $won, theme }) => 
+    $won ? theme.success : theme.error};
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+`;
 
-  return (
-    <div className="face">
-      {getDotPositions(number).map((pos, idx) => (
-        <div key={idx} className="dot" style={pos} />
-      ))}
-    </div>
-  );
+const diceVariants = {
+  rolling: {
+    rotate: [0, 360],
+    scale: [1, 1.1, 1],
+    transition: {
+      duration: 1,
+      repeat: Infinity,
+      ease: "linear",
+      scale: {
+        duration: 0.5,
+        repeat: Infinity,
+        ease: "easeInOut"
+      }
+    }
+  },
+  stopped: {
+    rotate: 0,
+    scale: 1,
+    transition: {
+      duration: 0.5,
+      type: "spring",
+      stiffness: 200,
+      damping: 20
+    }
+  }
 };
 
-export function DiceRoll({ 
-  number = 1,
-  rolling = false,
-  onRollComplete = () => {},
-}) {
+const resultVariants = {
+  initial: { 
+    opacity: 0, 
+    y: 20,
+    scale: 0.9 
+  },
+  animate: { 
+    opacity: 1, 
+    y: 0,
+    scale: 1,
+    transition: {
+      duration: 0.3,
+      ease: "easeOut"
+    }
+  },
+  exit: { 
+    opacity: 0, 
+    y: -20,
+    scale: 0.9,
+    transition: {
+      duration: 0.2
+    }
+  }
+};
+
+export function DiceRoll({ rolling, result, won }) {
   return (
     <DiceContainer>
-      <Dice
-        animate={rolling ? {
-          rotateX: [0, 360, 720, 1080],
-          rotateY: [0, 360, 720, 1080],
-          rotateZ: [0, 360, 720, 1080],
-        } : {
-          rotateX: 0,
-          rotateY: 0,
-          rotateZ: 0,
-        }}
-        transition={rolling ? {
-          duration: 2,
-          ease: "easeOut",
-          onComplete: onRollComplete,
-        } : {
-          duration: 0.5,
-          ease: "easeOut",
-        }}
+      <DiceWrapper
+        variants={diceVariants}
+        animate={rolling ? "rolling" : "stopped"}
       >
-        <DiceFace number={number} />
-      </Dice>
+        <DiceFace $face={result || 1} />
+      </DiceWrapper>
+
+      <AnimatePresence mode="wait">
+        {result && !rolling && (
+          <ResultText
+            $won={won}
+            variants={resultVariants}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+          >
+            {won ? 'You Won!' : 'Try Again!'}
+          </ResultText>
+        )}
+      </AnimatePresence>
     </DiceContainer>
   );
-}
-
-DiceRoll.propTypes = {
-  number: PropTypes.number,
-  rolling: PropTypes.bool,
-  onRollComplete: PropTypes.func,
-};
-
-export default DiceRoll; 
+} 
