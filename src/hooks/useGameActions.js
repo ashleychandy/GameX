@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useWallet } from '../contexts/WalletContext';
-import { handleError } from '../utils/helpers';
+import { handleError } from '../utils/errorHandling';
 import { toast } from 'react-toastify';
 
 export function useGameActions() {

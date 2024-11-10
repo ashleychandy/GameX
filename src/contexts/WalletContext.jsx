@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { ethers } from 'ethers';
 import { toast } from 'react-toastify';
 import { handleError } from '../utils/errorHandling';
@@ -32,6 +32,26 @@ export function WalletProvider({ children }) {
       };
     }
   }, []);
+
+  // Add auto-connect effect
+  useEffect(() => {
+    const autoConnect = async () => {
+      // Check if user was previously connected
+      const wasConnected = localStorage.getItem('walletConnected');
+      
+      if (wasConnected === 'true') {
+        try {
+          await connectWallet();
+        } catch (error) {
+          console.error('Auto-connect failed:', error);
+          // Clear stored connection state if auto-connect fails
+          localStorage.removeItem('walletConnected');
+        }
+      }
+    };
+
+    autoConnect();
+  }, []); // Run once on mount
 
   // Handle account changes
   const handleAccountsChanged = async (accounts) => {
@@ -94,6 +114,9 @@ export function WalletProvider({ children }) {
       setDiceContract(dice);
       setTokenContract(token);
 
+      // Store connection state
+      localStorage.setItem('walletConnected', 'true');
+
       await updateBalance(address);
 
     } catch (error) {
@@ -104,14 +127,16 @@ export function WalletProvider({ children }) {
   };
 
   // Disconnect wallet
-  const disconnectWallet = () => {
+  const disconnectWallet = useCallback(() => {
     setIsConnected(false);
-    setAddress('');
-    setBalance('0');
+    setAddress(null);
     setSigner(null);
     setDiceContract(null);
     setTokenContract(null);
-  };
+    setBalance('0');
+    // Clear stored connection state
+    localStorage.removeItem('walletConnected');
+  }, []);
 
   // Switch network
   const switchNetwork = async () => {
@@ -150,6 +175,34 @@ export function WalletProvider({ children }) {
       console.error('Error updating balance:', error);
     }
   };
+
+  // Add wallet change listeners
+  useEffect(() => {
+    if (!window.ethereum) return;
+
+    const handleAccountsChanged = (accounts) => {
+      if (accounts.length === 0) {
+        // User disconnected wallet
+        disconnectWallet();
+      } else if (accounts[0] !== address) {
+        // Account changed, reconnect
+        connectWallet();
+      }
+    };
+
+    const handleChainChanged = () => {
+      // Chain changed, refresh page as recommended by MetaMask
+      window.location.reload();
+    };
+
+    window.ethereum.on('accountsChanged', handleAccountsChanged);
+    window.ethereum.on('chainChanged', handleChainChanged);
+
+    return () => {
+      window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
+      window.ethereum.removeListener('chainChanged', handleChainChanged);
+    };
+  }, [address, disconnectWallet]);
 
   const value = {
     isConnected,

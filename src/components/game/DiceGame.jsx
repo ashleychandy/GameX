@@ -32,6 +32,7 @@ const GameContainer = styled(motion.div)`
 
   @media (max-width: 1024px) {
     grid-template-columns: 1fr;
+    padding: 1rem;
   }
 `;
 
@@ -95,6 +96,40 @@ const BetInfo = styled.div`
   }
 `;
 
+const BetControls = styled.div`
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 1rem;
+  align-items: center;
+  margin-bottom: 1rem;
+
+  @media (max-width: 768px) {
+    grid-template-columns: 1fr;
+  }
+`;
+
+const QuickAmounts = styled.div`
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+`;
+
+const QuickAmount = styled.button`
+  padding: 0.5rem 1rem;
+  border-radius: 9999px;
+  border: 1px solid ${({ theme }) => theme.border};
+  background: ${({ theme }) => theme.surface};
+  color: ${({ theme }) => theme.text.primary};
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  &:hover {
+    background: ${({ theme }) => theme.primary + '20'};
+    border-color: ${({ theme }) => theme.primary};
+  }
+`;
+
 export function DiceGame() {
   const [selectedNumber, setSelectedNumber] = useState(null);
   const [betAmount, setBetAmount] = useState('');
@@ -114,9 +149,19 @@ export function DiceGame() {
     refreshGameData
   } = useGame();
 
+  const quickAmounts = ['10', '50', '100', '500'];
+
+  const handleQuickAmount = (amount) => {
+    if (parseFloat(amount) > parseFloat(formatAmount(balance))) {
+      toast.warning("Insufficient balance");
+      return;
+    }
+    setBetAmount(amount);
+  };
+
   const handlePlaceBet = async () => {
     if (!address) {
-      toast.error('Please connect your wallet');
+      toast.error('Please connect your wallet to play');
       return;
     }
 
@@ -178,7 +223,7 @@ export function DiceGame() {
         <NumberSelector 
           selectedNumber={selectedNumber}
           onSelect={setSelectedNumber}
-          disabled={currentGame?.isActive || isPlacingBet}
+          disabled={!address || currentGame?.isActive || isPlacingBet}
           min={GAME_CONFIG.MIN_NUMBER}
           max={GAME_CONFIG.MAX_NUMBER}
         />
@@ -193,7 +238,7 @@ export function DiceGame() {
           <BetInfo>
             <div>
               <span>Balance: </span>
-              <strong>{formatAmount(balance)} DICE</strong>
+              <strong>{address ? formatAmount(balance) : '0'} DICE</strong>
             </div>
             <div>
               <span>Potential Win: </span>
@@ -201,24 +246,55 @@ export function DiceGame() {
             </div>
           </BetInfo>
 
-          <AmountInput
-            value={betAmount}
-            onChange={setBetAmount}
-            disabled={currentGame?.isActive || isPlacingBet}
-            min={ethers.formatEther(GAME_CONFIG.MIN_BET)}
-            max={ethers.formatEther(GAME_CONFIG.MAX_BET)}
-          />
+          <QuickAmounts>
+            {quickAmounts.map(amount => (
+              <QuickAmount
+                key={amount}
+                onClick={() => handleQuickAmount(amount)}
+                disabled={!address || currentGame?.isActive || isPlacingBet}
+              >
+                {amount} DICE
+              </QuickAmount>
+            ))}
+          </QuickAmounts>
 
-          <Button
-            $variant="primary"
-            $fullWidth
-            onClick={handlePlaceBet}
-            disabled={!canPlaceBet}
-          >
-            {isPlacingBet ? 'Placing Bet...' : 
-             isApproving ? 'Approving...' : 
-             'Place Bet'}
-          </Button>
+          <BetControls>
+            <AmountInput
+              value={betAmount}
+              onChange={setBetAmount}
+              disabled={!address || currentGame?.isActive || isPlacingBet}
+              min={ethers.formatEther(GAME_CONFIG.MIN_BET)}
+              max={ethers.formatEther(GAME_CONFIG.MAX_BET)}
+            />
+            <Button
+              $variant="secondary"
+              onClick={() => setBetAmount(formatAmount(balance))}
+              disabled={!address || currentGame?.isActive || isPlacingBet}
+            >
+              Max
+            </Button>
+          </BetControls>
+
+          {!address ? (
+            <Button
+              $variant="primary"
+              $fullWidth
+              onClick={() => toast.info('Please connect your wallet to play')}
+            >
+              Connect Wallet to Play
+            </Button>
+          ) : (
+            <Button
+              $variant="primary"
+              $fullWidth
+              onClick={handlePlaceBet}
+              disabled={!canPlaceBet}
+            >
+              {isPlacingBet ? 'Placing Bet...' : 
+               isApproving ? 'Approving...' : 
+               'Place Bet'}
+            </Button>
+          )}
 
           {canResolveGame && (
             <Button
@@ -240,14 +316,23 @@ export function DiceGame() {
       </MainSection>
 
       <SideSection>
-        <GameStats 
-          stats={playerStats}
-          currentGame={currentGame}
-        />
-        <GameResults 
-          results={previousBets}
-          currentGame={currentGame}
-        />
+        {address ? (
+          <>
+            <GameStats 
+              stats={playerStats}
+              currentGame={currentGame}
+            />
+            <GameResults 
+              results={previousBets}
+              currentGame={currentGame}
+            />
+          </>
+        ) : (
+          <GameCard>
+            <h2>Connect Wallet</h2>
+            <p>Connect your wallet to view your game statistics and history.</p>
+          </GameCard>
+        )}
       </SideSection>
 
       {(isLoading || isPlacingBet || isApproving) && (

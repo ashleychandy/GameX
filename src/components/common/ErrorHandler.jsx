@@ -13,36 +13,34 @@ const ErrorContainer = styled(motion.div)`
   text-align: center;
 `;
 
-const ErrorMessage = styled.div`
-  color: ${({ theme }) => theme.colors.error};
-  margin: 1rem 0;
-  max-width: 600px;
+const ErrorTitle = styled.h1`
+  font-size: 2rem;
+  margin-bottom: 1rem;
+  color: ${({ theme }) => theme.error};
 `;
 
-const ErrorDetails = styled.pre`
-  background: ${({ theme }) => theme.background};
-  padding: 1rem;
-  border-radius: 8px;
-  margin: 1rem 0;
-  max-width: 100%;
-  overflow-x: auto;
+const ErrorMessage = styled.p`
+  color: ${({ theme }) => theme.text.secondary};
+  margin-bottom: 2rem;
 `;
 
-export function ErrorHandler({ error, resetError }) {
-  const errorMessage = error?.message || 'An unexpected error occurred';
-  
+export function ErrorHandler({ error }) {
   return (
     <ErrorContainer
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -20 }}
+      exit={{ opacity: 0 }}
     >
-      <h2>Something went wrong</h2>
-      <ErrorMessage>{errorMessage}</ErrorMessage>
-      {process.env.NODE_ENV === 'development' && error?.stack && (
-        <ErrorDetails>{error.stack}</ErrorDetails>
-      )}
-      <Button onClick={resetError}>Try Again</Button>
+      <ErrorTitle>Something went wrong</ErrorTitle>
+      <ErrorMessage>
+        {error?.message || 'An unexpected error occurred. Please try again.'}
+      </ErrorMessage>
+      <Button onClick={() => window.location.reload()} $variant="primary">
+        Refresh Page
+      </Button>
     </ErrorContainer>
   );
-} 
+}
+
+// Add default export
+export default ErrorHandler; 
