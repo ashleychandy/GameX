@@ -26,7 +26,6 @@ const HomePage = lazy(() => import("./pages/HomePage").then(module => ({ default
 const DiceGamePage = lazy(() => import("./pages/DiceGamePage").then(module => ({ default: module.DiceGamePage })));
 const AdminPage = lazy(() => import("./pages/AdminPage").then(module => ({ default: module.AdminPage })));
 const NotFoundPage = lazy(() => import("./pages/NotFoundPage").then(module => ({ default: module.NotFoundPage })));
-const LeaderboardPage = lazy(() => import("./pages/LeaderboardPage").then(module => ({ default: module.LeaderboardPage })));
 const ProfilePage = lazy(() => import("./pages/ProfilePage").then(module => ({ default: module.ProfilePage })));
 
 // Enhanced loading wrapper with error boundary
@@ -58,12 +57,6 @@ export const routeConfig = {
     requiresAuth: true,
     requireAdmin: true,
     element: <AdminPage />,
-  },
-  leaderboard: {
-    path: "/leaderboard",
-    title: "Leaderboard",
-    requiresAuth: false,
-    element: <LeaderboardPage />,
   },
   profile: {
     path: "/profile/:address",

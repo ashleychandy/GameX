@@ -2,6 +2,11 @@ import DiceABI from '../abi/Dice.json';
 import TokenABI from '../abi/Token.json';
 import { CHAIN_CONFIG } from '../utils/constants';
 
+// Add validation
+if (!Array.isArray(DiceABI.abi) || !Array.isArray(TokenABI.abi)) {
+  throw new Error('Invalid ABI format in contract configuration');
+}
+
 // Contract configuration
 export const contracts = {
   dice: {

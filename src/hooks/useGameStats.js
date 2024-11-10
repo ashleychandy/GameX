@@ -1,44 +1,69 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useWallet } from '../contexts/WalletContext';
+import { useContract } from './useContract';
 import { handleError } from '../utils/errorHandling';
-import { contracts } from '../config';
 
 export function useGameStats() {
-  const { diceContract, address } = useWallet();
+  const { address } = useWallet();
+  const { contract } = useContract('dice');
+  
+  const [stats, setStats] = useState({
+    gameStats: null,
+    userStats: null,
+    recentRolls: []
+  });
   const [isLoading, setIsLoading] = useState(false);
-  const [stats, setStats] = useState(null);
-  const [userStats, setUserStats] = useState(null);
-  const [recentRolls, setRecentRolls] = useState([]);
+  const [error, setError] = useState(null);
 
   const fetchStats = useCallback(async () => {
-    if (!diceContract || !address) return;
+    if (!contract || !address) return;
+
     try {
       setIsLoading(true);
+      setError(null);
+
       const [gameStats, playerStats, lastRolls] = await Promise.all([
-        diceContract.getGameStats(),
-        diceContract.getUserStats(address),
-        diceContract.getPlayerLastNRolls(address, 10)
+        contract.getPlayerStats(address),
+        contract.getCurrentGame(address),
+        contract.getPreviousBets(address)
       ]);
 
-      setStats(gameStats);
-      setUserStats(playerStats);
-      setRecentRolls(lastRolls);
-    } catch (error) {
-      console.error('Error fetching stats:', error);
+      setStats({
+        gameStats: {
+          winRate: gameStats.winRate.toString(),
+          averageBet: gameStats.averageBet.toString(),
+          totalGamesWon: gameStats.totalGamesWon.toString(),
+          totalGamesLost: gameStats.totalGamesLost.toString()
+        },
+        userStats: {
+          isActive: playerStats.isActive,
+          chosenNumber: playerStats.chosenNumber.toString(),
+          amount: playerStats.amount.toString(),
+          status: playerStats.status
+        },
+        recentRolls: lastRolls.map(roll => ({
+          chosenNumber: roll.chosenNumber.toString(),
+          rolledNumber: roll.rolledNumber.toString(),
+          amount: roll.amount.toString(),
+          timestamp: roll.timestamp.toString()
+        }))
+      });
+    } catch (err) {
+      const { message } = handleError(err);
+      setError(message);
     } finally {
       setIsLoading(false);
     }
-  }, [diceContract, address]);
+  }, [contract, address]);
 
   useEffect(() => {
     fetchStats();
   }, [fetchStats]);
 
   return {
+    ...stats,
     isLoading,
-    stats,
-    userStats,
-    recentRolls,
+    error,
     refreshStats: fetchStats
   };
 } 
