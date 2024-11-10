@@ -1,0 +1,60 @@
+import React from 'react';
+import styled from 'styled-components';
+import { motion } from 'framer-motion';
+import { Outlet } from 'react-router-dom';
+import { Navbar } from './Navbar';
+import { Footer } from './Footer';
+import diceLogo from '../../assets/dice-logo.svg';
+
+const LayoutContainer = styled.div`
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+`;
+
+const Header = styled.header`
+  display: flex;
+  align-items: center;
+  padding: 1rem 2rem;
+  background: ${({ theme }) => theme.surface};
+  box-shadow: ${({ theme }) => theme.shadow.sm};
+`;
+
+const Logo = styled(motion.img)`
+  height: 2.5rem;
+  margin-right: 1rem;
+  color: ${({ theme }) => theme.primary};
+`;
+
+const Title = styled.h1`
+  font-size: 1.5rem;
+  color: ${({ theme }) => theme.text.primary};
+  background: ${({ theme }) => theme.gradients.primary};
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+`;
+
+const Main = styled.main`
+  flex: 1;
+`;
+
+export function Layout() {
+  return (
+    <LayoutContainer>
+      <Header>
+        <Logo 
+          src={diceLogo} 
+          alt="Crypto Dice Game"
+          whileHover={{ rotate: 360 }}
+          transition={{ duration: 0.5 }}
+        />
+        <Title>Crypto Dice Game</Title>
+      </Header>
+      <Navbar />
+      <Main>
+        <Outlet />
+      </Main>
+      <Footer />
+    </LayoutContainer>
+  );
+} 
