@@ -1,7 +1,7 @@
 import { createBrowserRouter, Navigate, useLocation } from "react-router-dom";
 import React, { lazy, Suspense } from "react";
 import { Layout } from "./components/layout/Layout";
-import { ErrorBoundary } from "./components/common/ErrorBoundary";
+import ErrorBoundary from "./components/common/ErrorBoundary";
 import Loading from "./components/common/Loading";
 import { useWallet } from "./contexts/WalletContext";
 import { GAME_CONFIG } from "./utils/constants";
@@ -31,7 +31,7 @@ const ProfilePage = lazy(() => import("./pages/ProfilePage").then(module => ({ d
 
 // Enhanced loading wrapper with error boundary
 const PageWrapper = ({ children, title }) => (
-  <ErrorBoundary fallback={<ErrorHandler />}>
+  <ErrorBoundary>
     <Suspense fallback={<Loading message={`Loading ${title}...`} />}>
       {children}
     </Suspense>
