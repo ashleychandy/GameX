@@ -79,4 +79,19 @@ export const validateContractResponse = (response) => {
     throw new ValidationError('Invalid contract response');
   }
   return response;
+};
+
+export const validateGameState = (gameData) => {
+  if (!gameData || typeof gameData !== 'object') {
+    throw new Error('Invalid game data');
+  }
+  
+  const requiredFields = ['isActive', 'chosenNumber', 'result', 'amount', 'status'];
+  for (const field of requiredFields) {
+    if (!(field in gameData)) {
+      throw new Error(`Missing required field: ${field}`);
+    }
+  }
+  
+  return true;
 }; 

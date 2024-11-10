@@ -1,24 +1,22 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import styled from "styled-components";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "react-toastify";
 import { ethers } from 'ethers';
+
 import { Button } from "../common/Button";
 import { NumberSelector } from "./NumberSelector";
 import { AmountInput } from "./AmountInput";
-import { useGame } from "../../hooks/useGame";
-import { useWallet } from "../../contexts/WalletContext";
 import { GameResults } from "./GameResults";
 import { GameStats } from "./GameStats";
 import { Loading } from "../common/Loading";
 import { GameCard } from "./GameCard";
-import { GameProgress } from "./GameProgress";
 import { DiceRoll } from "./DiceRoll";
-import { ErrorHandler } from "../common/ErrorHandler";
+import { useWallet } from "../../contexts/WalletContext";
+import { useGame } from "../../hooks/useGame";
 import { useTokenApproval } from "../../hooks/useTokenApproval";
 import { formatAmount } from "../../utils/helpers";
-import { validateBetAmount } from "../../utils/validation";
-import { GAME_CONFIG, GAME_STATES } from "../../utils/constants";
+import { GAME_STATES } from "../../utils/constants";
 
 const GameContainer = styled(motion.div)`
   max-width: 1200px;
@@ -134,99 +132,185 @@ const StatsContainer = styled(GameCard)`
   border-radius: 20px;
 `;
 
+const GameProgress = styled(motion.div)`
+  text-align: center;
+  padding: 1rem;
+  color: ${({ theme }) => theme.text.secondary};
+`;
+
+const ErrorMessage = styled(motion.div)`
+  color: ${({ theme }) => theme.error};
+  text-align: center;
+  padding: 1rem;
+  margin: 1rem 0;
+`;
+
 export function DiceGame() {
-  const { isConnected, address, balance } = useWallet();
-  const { gameData, playDice, resolveGame, isLoading, error, resetGame } = useGame();
-  const { hasApproval, approveTokens, isApproving, checkAllowance } = useTokenApproval();
-  
-  const [betAmount, setBetAmount] = useState("");
+  const { balance, address } = useWallet();
   const [selectedNumber, setSelectedNumber] = useState(null);
+  const [betAmount, setBetAmount] = useState("");
+  const [isPolling, setIsPolling] = useState(false);
+  
+  const {
+    gameData,
+    playDice,
+    resolveGame,
+    refreshGameData,
+    isLoading,
+    error: gameError
+  } = useGame();
+
+  const {
+    approveTokens,
+    isApproving,
+    checkAllowance,
+    error: approvalError
+  } = useTokenApproval();
 
   // Reset game state when address changes
   useEffect(() => {
-    setBetAmount("");
     setSelectedNumber(null);
-    resetGame();
-  }, [address, resetGame]);
+    setBetAmount("");
+    setIsPolling(false);
+  }, [address]);
 
-  // Memoized values
-  const canPlay = useMemo(() => {
-    if (!isConnected || !betAmount || isLoading || isApproving) return false;
-    try {
-      const amount = ethers.parseEther(betAmount);
-      return amount.gt(0) && amount.lte(balance);
-    } catch {
-      return false;
+  // Handle errors
+  useEffect(() => {
+    if (gameError) {
+      toast.error(gameError.message);
     }
-  }, [isConnected, betAmount, balance, isLoading, isApproving]);
-
-  const potentialWinnings = useMemo(() => {
-    if (!betAmount) return "0";
-    try {
-      return (Number(betAmount) * GAME_CONFIG.PAYOUT_MULTIPLIER).toString();
-    } catch {
-      return "0";
+    if (approvalError) {
+      toast.error(approvalError.message);
     }
-  }, [betAmount]);
+  }, [gameError, approvalError]);
 
-  const isGameActive = useMemo(() => 
-    gameData?.currentGame?.isActive && 
-    gameData.currentGame.status !== GAME_STATES.COMPLETED,
-    [gameData]
-  );
+  // Poll for game updates
+  useEffect(() => {
+    if (!isPolling || !gameData?.currentGame?.isActive) return;
 
-  const canResolve = useMemo(() => 
-    isGameActive && gameData.currentGame.status === GAME_STATES.WAITING_FOR_RESULT,
-    [isGameActive, gameData]
-  );
-
-  // Handlers
-  const handleBetAmountChange = (value) => {
-    try {
-      if (value) {
-        validateBetAmount(value, balance);
+    const pollInterval = setInterval(async () => {
+      try {
+        await refreshGameData();
+        const currentGame = gameData?.currentGame;
+        
+        if (currentGame?.status === GAME_STATES.COMPLETED) {
+          clearInterval(pollInterval);
+          setIsPolling(false);
+          
+          const won = currentGame.result === currentGame.chosenNumber;
+          toast.success(won ? "Congratulations! You won!" : "Better luck next time!");
+          
+          setSelectedNumber(null);
+          setBetAmount("");
+        }
+      } catch (error) {
+        console.error('Error polling game result:', error);
       }
-      setBetAmount(value);
+    }, 5000);
+
+    return () => clearInterval(pollInterval);
+  }, [isPolling, gameData, refreshGameData]);
+
+  const handleBetAmountChange = useCallback((value) => {
+    if (!value) {
+      setBetAmount("");
+      return;
+    }
+
+    // Remove any non-numeric characters except decimal point
+    const sanitizedValue = value.replace(/[^\d.]/g, '');
+    
+    // Ensure only one decimal point
+    const parts = sanitizedValue.split('.');
+    const cleanValue = parts[0] + (parts.length > 1 ? '.' + parts[1] : '');
+
+    // Limit decimal places to 18
+    const [whole, decimal = ''] = cleanValue.split('.');
+    const formattedValue = whole + (decimal ? '.' + decimal.slice(0, 18) : '');
+
+    if (isNaN(formattedValue) || parseFloat(formattedValue) < 0) {
+      toast.error("Please enter a valid bet amount");
+      return;
+    }
+    
+    if (parseFloat(formattedValue) > parseFloat(formatAmount(balance))) {
+      toast.error("Insufficient balance");
+      return;
+    }
+    
+    setBetAmount(formattedValue);
+  }, [balance]);
+
+  const handlePlay = async () => {
+    try {
+      if (!selectedNumber || !betAmount) {
+        toast.error("Please select a number and enter bet amount");
+        return;
+      }
+
+      // Check if there's an active game
+      if (gameData?.currentGame?.isActive) {
+        toast.error("You have an active game. Please wait for it to complete.");
+        return;
+      }
+
+      // Check and get approval if needed
+      const hasApproval = await checkAllowance(betAmount);
+      if (!hasApproval) {
+        const approved = await approveTokens(betAmount);
+        if (!approved) return;
+      }
+
+      // Place bet
+      const tx = await playDice(selectedNumber, betAmount);
+      await tx.wait();
+      
+      toast.success("Bet placed successfully!");
+      setIsPolling(true);
+      
+      // Refresh game data
+      await refreshGameData();
     } catch (error) {
       toast.error(error.message);
     }
   };
 
-  const handlePlay = async (number) => {
-    if (!canPlay) return;
-    
-    try {
-      // Check and get approval if needed
-      const hasCurrentApproval = await checkAllowance(betAmount);
-      if (!hasCurrentApproval) {
-        await approveTokens(betAmount);
-      }
-      
-      await playDice(number, betAmount);
-      setSelectedNumber(number);
-    } catch (error) {
-      const { message } = handleError(error);
-      toast.error(message);
-    }
-  };
-
   const handleResolve = async () => {
-    if (!canResolve) return;
-    
     try {
-      await resolveGame();
+      if (!gameData?.currentGame?.isActive) {
+        toast.error("No active game to resolve");
+        return;
+      }
+
+      const tx = await resolveGame();
+      await tx.wait();
+      
+      toast.success("Game resolved successfully!");
+      await refreshGameData();
+      
+      setSelectedNumber(null);
+      setBetAmount("");
     } catch (error) {
-      const { message } = handleError(error);
-      toast.error(message);
+      toast.error(error.message);
     }
   };
 
-  if (error) {
-    return <ErrorHandler error={error} />;
-  }
+  const potentialWinnings = useMemo(() => {
+    if (!betAmount || isNaN(betAmount)) return "0.00";
+    const winnings = (parseFloat(betAmount) * 6).toFixed(6);
+    return winnings.replace(/\.?0+$/, '');
+  }, [betAmount]);
+
+  const isGameActive = gameData?.currentGame?.isActive;
+  const canPlaceBet = !isLoading && !isApproving && !isGameActive;
+  const showResolve = isGameActive && gameData?.currentGame?.status === GAME_STATES.PENDING;
 
   return (
-    <GameContainer>
+    <GameContainer
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: 20 }}
+    >
       <MainSection>
         <GameHeader>
           <h1>Roll the Dice</h1>
@@ -235,23 +319,14 @@ export function DiceGame() {
 
         <NumberSelector
           selectedNumber={selectedNumber}
-          onSelect={handlePlay}
-          disabled={!canPlay || isGameActive}
+          onSelect={setSelectedNumber}
+          disabled={!canPlaceBet}
         />
 
-        <AnimatePresence mode="wait">
-          {isGameActive && (
-            <GameProgress 
-              gameState={gameData.currentGame.status}
-              requestDetails={gameData.requestDetails}
-            />
-          )}
-        </AnimatePresence>
-
         <DiceRoll
-          rolling={isLoading}
-          result={gameData?.currentGame?.rolledNumber}
-          won={gameData?.currentGame?.won}
+          rolling={isLoading || isPolling}
+          result={gameData?.currentGame?.result}
+          won={gameData?.currentGame?.result === gameData?.currentGame?.chosenNumber}
         />
 
         <GameControls>
@@ -270,31 +345,48 @@ export function DiceGame() {
             value={betAmount}
             onChange={handleBetAmountChange}
             max={balance}
-            disabled={isLoading || isApproving || isGameActive}
+            disabled={!canPlaceBet}
           />
 
-          {canResolve && (
-            <Button 
+          {showResolve ? (
+            <Button
+              $variant="secondary"
+              $fullWidth
               onClick={handleResolve}
               disabled={isLoading}
+            >
+              Resolve Game
+            </Button>
+          ) : (
+            <Button
               $variant="primary"
               $fullWidth
+              disabled={!selectedNumber || !betAmount || !canPlaceBet}
+              onClick={handlePlay}
             >
-              {isLoading ? "Resolving..." : "Resolve Game"}
+              {isApproving ? "Approving..." : 
+               isLoading ? "Rolling..." : 
+               isGameActive ? "Game in Progress..." :
+               "Roll Dice"}
             </Button>
           )}
         </GameControls>
       </MainSection>
 
       <SideSection>
-        <StatsContainer>
-          <GameStats stats={gameData?.playerStats} />
-        </StatsContainer>
-
-        <StatsContainer>
-          <GameResults results={gameData?.previousBets} />
-        </StatsContainer>
+        <GameStats 
+          stats={gameData?.stats}
+          isLoading={isLoading} 
+        />
+        <GameResults 
+          results={gameData?.recentResults}
+          isLoading={isLoading}
+        />
       </SideSection>
+
+      <AnimatePresence>
+        {(isLoading || isApproving) && <Loading />}
+      </AnimatePresence>
     </GameContainer>
   );
 }

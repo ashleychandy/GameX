@@ -1,4 +1,4 @@
-import { createBrowserRouter, Navigate, useLocation } from "react-router-dom";
+import { createBrowserRouter, Navigate } from "react-router-dom";
 import React, { lazy, Suspense } from "react";
 import { Layout } from "./components/layout/Layout";
 import { ErrorBoundary } from "./components/common/ErrorBoundary";
@@ -19,21 +19,21 @@ const ProtectedRoute = ({ children, requireAdmin }) => {
 
 // Lazy loaded components with proper error handling
 const HomePage = lazy(() => 
-  import("./pages/HomePage")
-    .then(module => ({ default: module.HomePage }))
-    .catch(error => {
-      console.error("Error loading HomePage:", error);
-      return { default: () => <ErrorHandler error={error} /> };
-    })
+  import("./pages/Home").then(module => ({ 
+    default: module.HomePage 
+  })).catch(error => {
+    console.error("Error loading HomePage:", error);
+    return { default: () => <ErrorHandler error={error} /> };
+  })
 );
 
 const DiceGamePage = lazy(() => 
-  import("./pages/DiceGamePage")
-    .then(module => ({ default: module.DiceGamePage }))
-    .catch(error => {
-      console.error("Error loading DiceGamePage:", error);
-      return { default: () => <ErrorHandler error={error} /> };
-    })
+  import("./pages/DiceGame").then(module => ({ 
+    default: module.DiceGamePage 
+  })).catch(error => {
+    console.error("Error loading DiceGamePage:", error);
+    return { default: () => <ErrorHandler error={error} /> };
+  })
 );
 
 const AdminPage = lazy(() => 
@@ -97,6 +97,11 @@ const router = createBrowserRouter(
   {
     future: {
       v7_startTransition: true,
+      v7_relativeSplatPath: true,
+      v7_fetcherPersist: true,
+      v7_normalizeFormMethod: true,
+      v7_partialHydration: true,
+      v7_skipActionErrorRevalidation: true
     },
   }
 );
