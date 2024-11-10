@@ -59,6 +59,21 @@ const ResultInfo = styled.div`
   color: ${({ theme }) => theme.text.secondary};
 `;
 
+const EmptyState = styled.div`
+  text-align: center;
+  padding: 2rem;
+  color: ${({ theme }) => theme.text.secondary};
+  
+  p {
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+  }
+  
+  small {
+    opacity: 0.7;
+  }
+`;
+
 export function GameResults({ results = [], currentGame }) {
   return (
     <ResultsContainer
@@ -89,38 +104,39 @@ export function GameResults({ results = [], currentGame }) {
         </ResultItem>
       )}
 
-      {results.map((result, index) => (
-        <ResultItem 
-          key={index}
-          $won={result.chosenNumber === result.rolledNumber}
-        >
-          <ResultHeader>
-            <strong>
-              {result.chosenNumber === result.rolledNumber ? 'Won' : 'Lost'}
-            </strong>
-            <span>{formatDate(result.timestamp)}</span>
-          </ResultHeader>
-          <ResultNumbers>
-            <NumberBox>
-              <span>Chosen</span>
-              <strong>{result.chosenNumber}</strong>
-            </NumberBox>
-            <NumberBox>
-              <span>Rolled</span>
-              <strong>{result.rolledNumber}</strong>
-            </NumberBox>
-            <NumberBox>
-              <span>Amount</span>
-              <strong>{formatAmount(result.amount)} DICE</strong>
-            </NumberBox>
-          </ResultNumbers>
-        </ResultItem>
-      ))}
-
-      {results.length === 0 && !currentGame?.isActive && (
-        <div style={{ textAlign: 'center', padding: '1rem' }}>
-          No games played yet
-        </div>
+      {results.length > 0 ? (
+        results.map((result, index) => (
+          <ResultItem 
+            key={index}
+            $won={result.chosenNumber === result.rolledNumber}
+          >
+            <ResultHeader>
+              <strong>
+                {result.chosenNumber === result.rolledNumber ? 'Won' : 'Lost'}
+              </strong>
+              <span>{formatDate(result.timestamp)}</span>
+            </ResultHeader>
+            <ResultNumbers>
+              <NumberBox>
+                <span>Chosen</span>
+                <strong>{result.chosenNumber}</strong>
+              </NumberBox>
+              <NumberBox>
+                <span>Rolled</span>
+                <strong>{result.rolledNumber}</strong>
+              </NumberBox>
+              <NumberBox>
+                <span>Amount</span>
+                <strong>{formatAmount(result.amount)} DICE</strong>
+              </NumberBox>
+            </ResultNumbers>
+          </ResultItem>
+        ))
+      ) : (
+        <EmptyState>
+          <p>No games played yet</p>
+          <small>Start playing to see your game history!</small>
+        </EmptyState>
       )}
     </ResultsContainer>
   );

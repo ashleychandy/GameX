@@ -53,14 +53,14 @@ export const validateGameState = (gameState) => {
   if (!gameState) return null;
 
   return {
-    isActive: gameState.isActive || false,
+    isActive: Boolean(gameState.isActive),
     chosenNumber: gameState.chosenNumber?.toString() || '0',
     result: gameState.result?.toString() || '0',
     amount: gameState.amount?.toString() || '0',
     timestamp: gameState.timestamp?.toString() || '0',
     payout: gameState.payout?.toString() || '0',
     randomWord: gameState.randomWord?.toString() || '0',
-    status: gameState.status || 0
+    status: Number(gameState.status) || 0
   };
 };
 
@@ -78,4 +78,19 @@ export const formatBetHistory = (bet) => {
 export const parseGameStatus = (status) => {
   const statuses = ['PENDING', 'STARTED', 'COMPLETED_WIN', 'COMPLETED_LOSS', 'CANCELLED'];
   return statuses[status] || 'UNKNOWN';
+};
+
+export const withRetry = async (fn, maxRetries = 3) => {
+  let lastError;
+  
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+      await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, i)));
+    }
+  }
+  
+  throw lastError;
 }; 

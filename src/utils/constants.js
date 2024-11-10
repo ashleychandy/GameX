@@ -30,25 +30,20 @@ export const VRF_CONFIG = {
 };
 
 // Game States - matching contract enum
-export const GAME_STATES = Object.freeze({
-  IDLE: 'IDLE',
-  WAITING_FOR_APPROVAL: 'WAITING_FOR_APPROVAL',
-  PLACING_BET: 'PLACING_BET',
-  WAITING_FOR_RESULT: 'WAITING_FOR_RESULT',
-  RESOLVING: 'RESOLVING',
-  COMPLETED: 'COMPLETED',
-  ERROR: 'ERROR'
-});
+export const GAME_STATES = {
+  INACTIVE: 0,
+  ACTIVE: 1,
+  PENDING_VRF: 2,
+  COMPLETED: 3,
+  FAILED: 4
+};
 
 // Game Configuration
 export const GAME_CONFIG = {
-  MIN_BET: ethers.parseEther('0.01'),
-  MAX_BET: ethers.parseEther('100'),
   PAYOUT_MULTIPLIER: 6,
-  MAX_NUMBER: 6,
-  POLL_INTERVAL: 5000,
-  HISTORY_LIMIT: 10,
-  GAME_TIMEOUT: 3600 // 1 hour in seconds
+  MIN_BET: "0.000000000000000001",
+  MAX_RETRIES: 3,
+  POLLING_INTERVAL: 5000
 };
 
 // Error Messages
@@ -139,4 +134,24 @@ export const GAME_STATUS = {
   COMPLETED_WIN: 2,
   COMPLETED_LOSS: 3,
   CANCELLED: 4
+};
+
+export const GAME_ERROR_MESSAGES = {
+  GAME_IN_PROGRESS: "A game is already in progress",
+  INVALID_BET: "Invalid bet parameters",
+  INSUFFICIENT_BALANCE: "Insufficient balance",
+  VRF_ERROR: "Random number generation failed",
+  INVALID_GAME_STATE: "Invalid game state"
+};
+
+// Add this to constants.js
+export const UI_STATES = {
+  IDLE: 'IDLE',
+  SELECTING: 'SELECTING',
+  APPROVING: 'APPROVING',
+  PLACING_BET: 'PLACING_BET',
+  WAITING_FOR_RESULT: 'WAITING_FOR_RESULT',
+  RESOLVING: 'RESOLVING',
+  COMPLETED: 'COMPLETED',
+  ERROR: 'ERROR'
 };

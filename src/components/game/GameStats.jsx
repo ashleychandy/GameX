@@ -37,34 +37,44 @@ const StatValue = styled.span`
 export function GameStats({ stats }) {
   if (!stats) return null;
 
+  const formatWinRate = (rate) => {
+    if (!rate || isNaN(rate)) return '0.00';
+    return (Number(rate) / 100).toFixed(2);
+  };
+
+  const formatGameValue = (value) => {
+    if (!value || isNaN(value)) return '0';
+    return Number(value).toString();
+  };
+
   const statItems = [
     { 
       label: 'Win Rate', 
-      value: `${((stats.winRate || 0) / 100).toFixed(2)}%` 
+      value: `${formatWinRate(stats.winRate)}%` 
     },
     { 
       label: 'Total Games', 
-      value: stats.totalGames || '0'
+      value: formatGameValue(stats.totalGames)
     },
     { 
       label: 'Games Won', 
-      value: stats.totalGamesWon || '0'
+      value: formatGameValue(stats.totalGamesWon)
     },
     { 
       label: 'Games Lost', 
-      value: stats.totalGamesLost || '0'
+      value: formatGameValue(stats.totalGamesLost)
     },
     { 
       label: 'Average Bet', 
-      value: `${formatAmount(stats.averageBet || 0)} DICE` 
+      value: `${formatAmount(stats.averageBet || '0')} DICE` 
     },
     { 
       label: 'Total Winnings', 
-      value: `${formatAmount(stats.totalWinnings || 0)} DICE` 
+      value: `${formatAmount(stats.totalWinnings || '0')} DICE` 
     },
     { 
       label: 'Total Losses', 
-      value: `${formatAmount(stats.totalLosses || 0)} DICE` 
+      value: `${formatAmount(stats.totalLosses || '0')} DICE` 
     }
   ];
 
