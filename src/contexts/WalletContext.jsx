@@ -183,6 +183,13 @@ export function WalletProvider({ children }) {
     return () => clearInterval(interval);
   }, [address, updateBalance]);
 
+  const isCorrectNetwork = useCallback(() => {
+    // Convert chainId to number if it's a BigInt
+    const currentChainId = typeof chainId === 'bigint' ? Number(chainId) : chainId;
+    const targetChainId = 11155111; // Sepolia testnet
+    return currentChainId === targetChainId;
+  }, [chainId]);
+
   const contextValue = {
     provider,
     signer,

@@ -8,19 +8,29 @@ export class ValidationError extends Error {
   }
 }
 
-export const validateBetAmount = (amount, balance) => {
+export const validateBetAmount = (amount) => {
   if (!amount || isNaN(amount) || parseFloat(amount) <= 0) {
-    throw new Error('Please enter a valid bet amount');
+    throw new Error('Invalid bet amount');
   }
 
-  const betAmount = ethers.parseEther(amount.toString());
-  const userBalance = balance || ethers.parseEther('0');
-
-  if (betAmount.gt(userBalance)) {
-    throw new Error('Insufficient balance');
+  const amountBN = ethers.parseEther(amount.toString());
+  
+  if (amountBN.lt(GAME_CONFIG.MIN_BET)) {
+    throw new Error(`Minimum bet amount is ${ethers.formatEther(GAME_CONFIG.MIN_BET)} tokens`);
   }
 
-  return betAmount;
+  if (amountBN.gt(GAME_CONFIG.MAX_BET)) {
+    throw new Error(`Maximum bet amount is ${ethers.formatEther(GAME_CONFIG.MAX_BET)} tokens`);
+  }
+
+  return amountBN;
+};
+
+export const validateContractAddress = (address) => {
+  if (!address || !ethers.isAddress(address)) {
+    throw new Error('Invalid contract address');
+  }
+  return address;
 };
 
 export const validateGameData = (data) => {

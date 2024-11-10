@@ -40,10 +40,10 @@ export const GAME_STATES = {
 
 // Game Configuration
 export const GAME_CONFIG = {
-  PAYOUT_MULTIPLIER: 6,
-  MIN_BET: "0.000000000000000001",
-  MAX_RETRIES: 3,
-  POLLING_INTERVAL: 5000
+  MIN_BET: ethers.parseEther('0.01'), // 0.01 tokens
+  MAX_BET: ethers.parseEther('100'),  // 100 tokens
+  APPROVAL_AMOUNT: ethers.parseEther('1000000'), // 1M tokens for approval
+  MULTIPLIER: 6
 };
 
 // Error Messages
@@ -60,9 +60,9 @@ export const ERROR_MESSAGES = {
 
 // Contract Events
 export const EVENTS = {
-  GAME_STARTED: "GameStarted",
-  GAME_COMPLETED: "GameCompleted",
-  RANDOM_WORDS_FULFILLED: "RandomWordsFulfilled",
+  GAME_STARTED: 'GameStarted',
+  GAME_RESOLVED: 'GameResolved',
+  RANDOM_WORDS_FULFILLED: 'RandomWordsFulfilled'
 };
 
 // Time Constants
@@ -123,9 +123,9 @@ export const ROLES = {
 
 // Transaction Types
 export const TRANSACTION_TYPES = {
-  APPROVE: 'APPROVE',
-  PLAY: 'PLAY',
-  RESOLVE: 'RESOLVE'
+  APPROVE: 'APPROVE_TOKENS',
+  PLACE_BET: 'PLACE_BET',
+  RESOLVE_GAME: 'RESOLVE_GAME'
 };
 
 export const GAME_STATUS = {
@@ -146,12 +146,19 @@ export const GAME_ERROR_MESSAGES = {
 
 // Add this to constants.js
 export const UI_STATES = {
-  IDLE: 'IDLE',
-  SELECTING: 'SELECTING',
-  APPROVING: 'APPROVING',
-  PLACING_BET: 'PLACING_BET',
-  WAITING_FOR_RESULT: 'WAITING_FOR_RESULT',
-  RESOLVING: 'RESOLVING',
-  COMPLETED: 'COMPLETED',
-  ERROR: 'ERROR'
+  IDLE: "IDLE",
+  SELECTING: "SELECTING",
+  APPROVING: "APPROVING",
+  PLACING_BET: "PLACING_BET",
+  WAITING_FOR_RESULT: "WAITING_FOR_RESULT",
+  RESOLVING: "RESOLVING",
+  COMPLETED: "COMPLETED",
+  ERROR: "ERROR"
+};
+
+export const CONTRACT_ERRORS = {
+  INSUFFICIENT_ALLOWANCE: 'InsufficientAllowance',
+  INVALID_BET_PARAMETERS: 'InvalidBetParameters',
+  GAME_ALREADY_ACTIVE: 'GameAlreadyActive',
+  INSUFFICIENT_BALANCE: 'InsufficientBalance'
 };
