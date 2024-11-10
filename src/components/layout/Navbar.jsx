@@ -8,13 +8,17 @@ import { formatAddress, formatAmount } from '../../utils/helpers';
 import { toast } from 'react-toastify';
 import { handleError } from '../../utils/errorHandling';
 
-const Nav = styled.nav`
+// Create motion components first
+const MotionNav = motion.nav;
+const MotionDiv = motion.div;
+
+const Nav = styled(MotionNav)`
   background: ${({ theme }) => theme.surface};
+  border-bottom: 1px solid ${({ theme }) => theme.border};
   padding: 1rem 2rem;
-  box-shadow: ${({ theme }) => theme.shadow.sm};
 `;
 
-const NavContainer = styled(motion.create("nav"))`
+const NavContainer = styled.div`
   max-width: 1200px;
   margin: 0 auto;
   display: flex;
@@ -27,17 +31,30 @@ const NavLinks = styled.div`
   gap: 2rem;
 `;
 
-const NavLink = styled(motion.create(Link))`
-  color: ${({ $active, theme }) => 
+// Create a base Link component with motion
+const MotionLink = motion(Link);
+
+const StyledNavLink = styled(MotionLink)`
+  color: ${({ theme, $active }) => 
     $active ? theme.primary : theme.text.secondary};
+  text-decoration: none;
   font-weight: 500;
-  padding: 0.5rem 1rem;
-  border-radius: 8px;
-  transition: all 0.2s ease;
+  position: relative;
 
   &:hover {
     color: ${({ theme }) => theme.primary};
-    background: ${({ theme }) => theme.background};
+  }
+
+  &::after {
+    content: '';
+    position: absolute;
+    bottom: -4px;
+    left: 0;
+    width: 100%;
+    height: 2px;
+    background: ${({ theme }) => theme.primary};
+    transform: scaleX(${({ $active }) => ($active ? 1 : 0)});
+    transition: transform 0.2s ease;
   }
 `;
 
@@ -48,77 +65,71 @@ const WalletInfo = styled.div`
 `;
 
 const Balance = styled.div`
-  padding: 0.5rem 1rem;
-  background: ${({ theme }) => theme.background};
-  border-radius: 8px;
-  font-weight: 500;
+  color: ${({ theme }) => theme.text.secondary};
   
   span {
-    color: ${({ theme }) => theme.text.secondary};
     margin-right: 0.5rem;
   }
 `;
 
-const Address = styled(motion.div)`
+const Address = styled(MotionDiv)`
   padding: 0.5rem 1rem;
   background: ${({ theme }) => theme.background};
   border-radius: 8px;
-  font-family: monospace;
   cursor: pointer;
 `;
+
+// NavLink component with motion properties
+const NavLink = ({ to, children, $active }) => (
+  <StyledNavLink
+    to={to}
+    $active={$active}
+    whileHover={{ scale: 1.05 }}
+    whileTap={{ scale: 0.95 }}
+  >
+    {children}
+  </StyledNavLink>
+);
 
 export function Navbar() {
   const location = useLocation();
   const { isConnected, address, balance, connectWallet, disconnectWallet } = useWallet();
   const [isConnecting, setIsConnecting] = useState(false);
 
-  const handleAddressClick = () => {
-    navigator.clipboard.writeText(address);
-    toast.success('Address copied to clipboard!');
-  };
-
   const handleConnect = async () => {
     try {
       setIsConnecting(true);
       await connectWallet();
     } catch (error) {
-      const { message } = handleError(error);
-      toast.error(message);
+      console.error('Connection error:', error);
     } finally {
       setIsConnecting(false);
     }
   };
 
+  const handleAddressClick = () => {
+    navigator.clipboard.writeText(address);
+    toast.success('Address copied to clipboard!');
+  };
+
   return (
-    <Nav>
+    <Nav
+      initial={{ opacity: 0, y: -20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3 }}
+    >
       <NavContainer>
         <NavLinks>
-          <NavLink 
-            to="/"
-            $active={location.pathname === '/'}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-          >
+          <NavLink to="/" $active={location.pathname === '/'}>
             Home
           </NavLink>
-          <NavLink 
-            to="/game"
-            $active={location.pathname === '/game'}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-          >
+          <NavLink to="/game" $active={location.pathname === '/game'}>
             Play
           </NavLink>
-          <NavLink 
-            to="/admin"
-            $active={location.pathname === '/admin'}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-          >
-            Admin
+          <NavLink to="/leaderboard" $active={location.pathname === '/leaderboard'}>
+            Leaderboard
           </NavLink>
         </NavLinks>
-
         <WalletInfo>
           {isConnected ? (
             <>
