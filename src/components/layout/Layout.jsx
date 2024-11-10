@@ -11,6 +11,8 @@ const LayoutContainer = styled.div`
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  background: ${({ theme }) => theme.background};
+  color: ${({ theme }) => theme.text.primary};
 `;
 
 const Header = styled.header`
@@ -37,6 +39,7 @@ const Title = styled.h1`
 
 const Main = styled.main`
   flex: 1;
+  background: ${({ theme }) => theme.background};
 `;
 
 export function Layout() {

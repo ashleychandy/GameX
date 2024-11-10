@@ -4,12 +4,12 @@ import { ThemeProvider } from 'styled-components';
 import { ToastContainer } from 'react-toastify';
 import { WalletProvider } from './contexts/WalletContext';
 import { router } from './routes.jsx';
-import { theme } from './styles/theme';
+import { themes } from './styles/theme';
 import { GlobalStyle } from './styles/GlobalStyle';
 
 function App() {
   return (
-    <ThemeProvider theme={theme}>
+    <ThemeProvider theme={themes.dark}>
       <WalletProvider>
         <GlobalStyle />
         <RouterProvider router={router} />

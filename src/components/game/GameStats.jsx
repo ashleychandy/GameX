@@ -5,9 +5,9 @@ import { formatAmount } from '../../utils/helpers';
 
 const StatsContainer = styled(motion.div)`
   padding: 1.5rem;
-  background: ${({ theme }) => theme.background.primary};
+  background: ${({ theme }) => theme.surface};
   border-radius: 12px;
-  box-shadow: ${({ theme }) => theme.shadows.medium};
+  box-shadow: ${({ theme }) => theme.shadow.md};
 `;
 
 const StatItem = styled.div`
@@ -38,13 +38,34 @@ export function GameStats({ stats }) {
   if (!stats) return null;
 
   const statItems = [
-    { label: 'Win Rate', value: `${stats.winRate.toFixed(2)}%` },
-    { label: 'Total Games', value: stats.totalGames },
-    { label: 'Games Won', value: stats.totalGamesWon },
-    { label: 'Games Lost', value: stats.totalGamesLost },
-    { label: 'Average Bet', value: `${formatAmount(stats.averageBet)} DICE` },
-    { label: 'Total Winnings', value: `${formatAmount(stats.totalWinnings)} DICE` },
-    { label: 'Total Losses', value: `${formatAmount(stats.totalLosses)} DICE` }
+    { 
+      label: 'Win Rate', 
+      value: `${((stats.winRate || 0) / 100).toFixed(2)}%` 
+    },
+    { 
+      label: 'Total Games', 
+      value: stats.totalGames || '0'
+    },
+    { 
+      label: 'Games Won', 
+      value: stats.totalGamesWon || '0'
+    },
+    { 
+      label: 'Games Lost', 
+      value: stats.totalGamesLost || '0'
+    },
+    { 
+      label: 'Average Bet', 
+      value: `${formatAmount(stats.averageBet || 0)} DICE` 
+    },
+    { 
+      label: 'Total Winnings', 
+      value: `${formatAmount(stats.totalWinnings || 0)} DICE` 
+    },
+    { 
+      label: 'Total Losses', 
+      value: `${formatAmount(stats.totalLosses || 0)} DICE` 
+    }
   ];
 
   return (

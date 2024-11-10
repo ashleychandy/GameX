@@ -5,9 +5,9 @@ import { formatAmount, formatDate } from '../../utils/helpers';
 
 const ResultsContainer = styled(motion.div)`
   padding: 1.5rem;
-  background: ${({ theme }) => theme.background.primary};
+  background: ${({ theme }) => theme.surface};
   border-radius: 12px;
-  box-shadow: ${({ theme }) => theme.shadows.medium};
+  box-shadow: ${({ theme }) => theme.shadow.md};
 `;
 
 const ResultItem = styled.div`
@@ -109,10 +109,11 @@ export function GameResults({ results = [], currentGame }) {
               <span>Rolled</span>
               <strong>{result.rolledNumber}</strong>
             </NumberBox>
+            <NumberBox>
+              <span>Amount</span>
+              <strong>{formatAmount(result.amount)} DICE</strong>
+            </NumberBox>
           </ResultNumbers>
-          <ResultInfo>
-            <span>Bet: {formatAmount(result.amount)} DICE</span>
-          </ResultInfo>
         </ResultItem>
       ))}
 

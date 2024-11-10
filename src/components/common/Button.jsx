@@ -1,36 +1,30 @@
+import React from 'react';
 import styled from 'styled-components';
-import { motion } from 'framer-motion';
+import { Link } from 'react-router-dom';
 
-export const Button = styled(motion.button)`
-  padding: ${({ $size = 'md' }) => {
-    switch ($size) {
-      case 'sm': return '0.5rem 1rem';
-      case 'lg': return '1rem 2rem';
-      default: return '0.75rem 1.5rem';
-    }
-  }};
-  font-size: ${({ $size = 'md' }) => {
-    switch ($size) {
-      case 'sm': return '0.875rem';
-      case 'lg': return '1.125rem';
-      default: return '1rem';
-    }
-  }};
-  font-weight: 500;
-  border-radius: 8px;
-  border: none;
+const ButtonStyles = styled.button`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: ${({ $size }) => 
+    $size === 'large' ? '1rem 2rem' : 
+    $size === 'small' ? '0.5rem 1rem' : 
+    '0.75rem 1.5rem'};
+  border-radius: 12px;
+  font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
-  width: ${({ $fullWidth }) => ($fullWidth ? '100%' : 'auto')};
+  width: ${({ $fullWidth }) => $fullWidth ? '100%' : 'auto'};
   
-  ${({ $variant = 'primary', theme }) => {
+  ${({ $variant, theme }) => {
     switch ($variant) {
       case 'primary':
         return `
-          background: ${theme.gradients.primary};
+          background: ${theme.primary};
           color: ${theme.text.inverse};
+          border: none;
           &:hover:not(:disabled) {
-            opacity: 0.9;
+            background: ${theme.primaryHover};
           }
         `;
       case 'secondary':
@@ -39,17 +33,7 @@ export const Button = styled(motion.button)`
           color: ${theme.text.primary};
           border: 1px solid ${theme.border};
           &:hover:not(:disabled) {
-            background: ${theme.background};
-          }
-        `;
-      case 'outline':
-        return `
-          background: transparent;
-          color: ${theme.primary};
-          border: 1px solid ${theme.primary};
-          &:hover:not(:disabled) {
-            background: ${theme.primary};
-            color: ${theme.text.inverse};
+            background: ${theme.surfaceHover};
           }
         `;
       default:
@@ -58,7 +42,60 @@ export const Button = styled(motion.button)`
   }}
 
   &:disabled {
-    opacity: 0.5;
+    opacity: 0.6;
     cursor: not-allowed;
   }
 `;
+
+const StyledLink = styled(Link)`
+  text-decoration: none;
+  color: inherit;
+`;
+
+export const Button = React.forwardRef(({
+  children,
+  to,
+  onClick,
+  $variant = 'primary',
+  $size = 'medium',
+  $fullWidth = false,
+  disabled = false,
+  type = 'button',
+  ...props
+}, ref) => {
+  // If 'to' prop is provided, render as Link
+  if (to) {
+    return (
+      <ButtonStyles
+        as="div"
+        $variant={$variant}
+        $size={$size}
+        $fullWidth={$fullWidth}
+        {...props}
+        ref={ref}
+      >
+        <StyledLink to={to}>
+          {children}
+        </StyledLink>
+      </ButtonStyles>
+    );
+  }
+
+  // Otherwise render as button
+  return (
+    <ButtonStyles
+      onClick={onClick}
+      $variant={$variant}
+      $size={$size}
+      $fullWidth={$fullWidth}
+      disabled={disabled}
+      type={type}
+      {...props}
+      ref={ref}
+    >
+      {children}
+    </ButtonStyles>
+  );
+});
+
+Button.displayName = 'Button';
