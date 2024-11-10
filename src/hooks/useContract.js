@@ -1,38 +1,30 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
-import { useWallet } from '../contexts/WalletContext';
 import { contracts } from '../config';
 
 export function useContract(contractName) {
-  const { signer, provider } = useWallet();
   const [contract, setContract] = useState(null);
   const [isValid, setIsValid] = useState(false);
 
   useEffect(() => {
     const initializeContract = async () => {
-      if (!signer || !contracts[contractName]) {
+      const { address, abi } = contracts[contractName];
+
+      if (!address || !abi) {
+        console.error(`Invalid contract config for ${contractName}`);
         setContract(null);
         setIsValid(false);
         return;
       }
 
       try {
-        const { address, abi } = contracts[contractName];
-        
-        if (!address || !abi) {
-          console.error(`Invalid contract config for ${contractName}`);
-          setContract(null);
-          setIsValid(false);
-          return;
-        }
-
-        // Create contract instance
+        const provider = new ethers.providers.Web3Provider(window.ethereum);
+        const signer = provider.getSigner();
         const newContract = new ethers.Contract(address, abi, signer);
-        
-        // Verify contract code exists on chain
+
         const code = await provider.getCode(address);
         const valid = code !== '0x' && code !== '0x0';
-        
+
         if (!valid) {
           console.error(`No contract code found at ${address}`);
           setContract(null);
@@ -50,7 +42,7 @@ export function useContract(contractName) {
     };
 
     initializeContract();
-  }, [contractName, signer, provider]);
+  }, [contractName]);
 
   return { contract, isValid };
 } 

@@ -92,6 +92,9 @@ const MaxButton = styled(motion.button)`
   }
 `;
 
+const MAX_SAFE_AMOUNT = '1000000'; // Reduced from 1000000000
+const MIN_SAFE_AMOUNT = '0.000001';
+
 export function BetInput({ 
   value, 
   onChange, 
@@ -123,18 +126,61 @@ export function BetInput({
     }
   };
 
+  const handleInputChange = (e) => {
+    const newValue = e.target.value;
+    
+    try {
+      // Don't process empty values
+      if (!newValue) {
+        onChange('');
+        return;
+      }
+
+      // Validate numeric input
+      if (isNaN(newValue)) {
+        return;
+      }
+
+      const numValue = parseFloat(newValue);
+
+      // Handle minimum value
+      if (numValue < parseFloat(MIN_SAFE_AMOUNT)) {
+        onChange(MIN_SAFE_AMOUNT);
+        return;
+      }
+
+      // Handle maximum value
+      if (numValue > parseFloat(MAX_SAFE_AMOUNT)) {
+        onChange(MAX_SAFE_AMOUNT);
+        return;
+      }
+
+      // Handle decimal places (max 18 decimals for ETH)
+      const parts = newValue.split('.');
+      if (parts[1] && parts[1].length > 18) {
+        return;
+      }
+
+      onChange(newValue);
+    } catch (error) {
+      console.error('Input validation error:', error);
+      // Keep the previous valid value
+    }
+  };
+
   return (
     <BetInputContainer>
       <InputWrapper>
         <StyledInput
           type="number"
           value={value}
-          onChange={(e) => onChange(e.target.value)}
+          onChange={handleInputChange}
           placeholder="Enter bet amount"
           disabled={disabled}
           $error={!!error}
-          min="0"
-          step="0.1"
+          min={MIN_SAFE_AMOUNT}
+          max={MAX_SAFE_AMOUNT}
+          step="0.000001"
         />
         <MaxButton onClick={handleMax}>MAX</MaxButton>
         <TokenSymbol>GAMEX</TokenSymbol>

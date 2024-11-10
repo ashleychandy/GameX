@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import styled from "styled-components";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "react-toastify";
@@ -16,6 +16,8 @@ import { useWallet } from "../contexts/WalletContext";
 import { useGame } from "../hooks/useGame";
 import { useTokenApproval } from "../hooks/useTokenApproval";
 import { formatAmount } from "../utils/helpers";
+import { showError } from "../utils/errorHandling";
+import { GAME_STATES } from "../utils/constants";
 
 const GameContainer = styled(motion.div)`
   max-width: 1200px;
@@ -94,30 +96,104 @@ export function DiceGame() {
   const { balance, address } = useWallet();
   const [selectedNumber, setSelectedNumber] = useState(null);
   const [betAmount, setBetAmount] = useState("");
-  const { isApproving, checkAndApprove } = useTokenApproval();
+  const { approveTokens, isApproving, checkAllowance } = useTokenApproval();
   const {
-    placeBet,
+    gameData,
+    playDice,
+    resolveGame,
+    refreshGameData,
     isLoading,
-    gameResult,
-    gameStats,
-    recentResults
+    error
   } = useGame();
 
-  const handleBet = async () => {
-    if (!selectedNumber || !betAmount) {
-      toast.error("Please select a number and enter bet amount");
+  // Reset game state when address changes
+  useEffect(() => {
+    setSelectedNumber(null);
+    setBetAmount("");
+  }, [address]);
+
+  // Handle errors from useGame hook
+  useEffect(() => {
+    if (error) {
+      showError(error, 'DiceGame');
+    }
+  }, [error]);
+
+  const handleBetAmountChange = useCallback((value) => {
+    // Validate bet amount
+    if (value && (isNaN(value) || parseFloat(value) <= 0)) {
+      toast.error("Please enter a valid bet amount");
       return;
     }
+    
+    if (value && parseFloat(value) > parseFloat(formatAmount(balance))) {
+      toast.error("Insufficient balance");
+      return;
+    }
+    
+    setBetAmount(value);
+  }, [balance]);
 
-    // Check approval first
-    const approved = await checkAndApprove(betAmount);
-    if (!approved) return;
+  const handleBet = async () => {
+    try {
+      if (!selectedNumber || !betAmount) {
+        toast.error("Please select a number and enter bet amount");
+        return;
+      }
 
-    // Place bet
-    await placeBet(selectedNumber, betAmount);
+      // Check if there's an active game
+      if (gameData?.currentGame?.isActive) {
+        toast.error("You have an active game. Please wait for it to complete.");
+        return;
+      }
+
+      // Check and get approval if needed
+      const hasApproval = await checkAllowance(betAmount);
+      if (!hasApproval) {
+        const approved = await approveTokens(betAmount);
+        if (!approved) return;
+      }
+
+      // Place bet
+      await playDice(selectedNumber, betAmount);
+      toast.success("Bet placed successfully!");
+
+      // Start polling for game result
+      startPollingGameResult();
+    } catch (error) {
+      showError(error, 'placeBet');
+    }
   };
 
-  const potentialWinnings = betAmount ? (parseFloat(betAmount) * 6).toFixed(2) : "0.00";
+  // Poll for game result
+  const startPollingGameResult = useCallback(() => {
+    const pollInterval = setInterval(async () => {
+      try {
+        await refreshGameData();
+        const currentGame = gameData?.currentGame;
+        
+        if (currentGame?.status === GAME_STATES.COMPLETED) {
+          clearInterval(pollInterval);
+          const won = currentGame.result === currentGame.chosenNumber;
+          toast.success(won ? "Congratulations! You won!" : "Better luck next time!");
+          setSelectedNumber(null);
+          setBetAmount("");
+        }
+      } catch (error) {
+        console.error('Error polling game result:', error);
+      }
+    }, 5000); // Poll every 5 seconds
+
+    // Cleanup
+    return () => clearInterval(pollInterval);
+  }, [gameData, refreshGameData]);
+
+  const potentialWinnings = betAmount ? 
+    (parseFloat(betAmount) * 6).toFixed(2) : 
+    "0.00";
+
+  const isGameActive = gameData?.currentGame?.isActive;
+  const canPlaceBet = !isLoading && !isApproving && !isGameActive;
 
   return (
     <GameContainer
@@ -134,13 +210,13 @@ export function DiceGame() {
         <NumberSelector
           selectedNumber={selectedNumber}
           onSelect={setSelectedNumber}
-          disabled={isLoading || isApproving}
+          disabled={!canPlaceBet}
         />
 
         <DiceRoll
           rolling={isLoading}
-          result={gameResult?.number}
-          won={gameResult?.won}
+          result={gameData?.currentGame?.result}
+          won={gameData?.currentGame?.won}
         />
 
         <GameControls>
@@ -157,25 +233,34 @@ export function DiceGame() {
 
           <AmountInput
             value={betAmount}
-            onChange={setBetAmount}
+            onChange={handleBetAmountChange}
             max={balance}
-            disabled={isLoading || isApproving}
+            disabled={!canPlaceBet}
           />
 
           <Button
             $variant="primary"
             $fullWidth
-            disabled={!selectedNumber || !betAmount || isLoading || isApproving}
+            disabled={!selectedNumber || !betAmount || !canPlaceBet}
             onClick={handleBet}
           >
-            {isApproving ? "Approving..." : isLoading ? "Rolling..." : "Roll Dice"}
+            {isApproving ? "Approving..." : 
+             isLoading ? "Rolling..." : 
+             isGameActive ? "Game in Progress..." :
+             "Roll Dice"}
           </Button>
         </GameControls>
       </MainSection>
 
       <SideSection>
-        <GameStats stats={gameStats} />
-        <GameResults results={recentResults} />
+        <GameStats 
+          stats={gameData?.stats}
+          isLoading={isLoading} 
+        />
+        <GameResults 
+          results={gameData?.recentResults}
+          isLoading={isLoading}
+        />
       </SideSection>
 
       <AnimatePresence>
