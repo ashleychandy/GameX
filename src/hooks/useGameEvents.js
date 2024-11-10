@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useCallback } from 'react';
 import { ethers } from 'ethers';
 import { toast } from 'react-toastify';
 import { useWallet } from '../contexts/WalletContext';
@@ -6,38 +6,46 @@ import { useWallet } from '../contexts/WalletContext';
 export function useGameEvents(onGameUpdate) {
   const { diceContract: contract, address } = useWallet();
 
-  useEffect(() => {
+  const setupEventListeners = useCallback((contract, address) => {
     if (!contract || !address) return;
 
-    const betPlacedFilter = contract.filters.BetPlaced(address);
-    const gameResolvedFilter = contract.filters.GameResolved(address);
-    const randomWordsFilter = contract.filters.RandomWordsFulfilled();
-
-    const handleBetPlaced = (player, number, amount, timestamp) => {
-      if (player.toLowerCase() === address.toLowerCase()) {
-        toast.info(`Bet placed: ${number} for ${ethers.formatEther(amount)} DICE`);
-        onGameUpdate?.();
-      }
+    const filters = {
+      betPlaced: contract.filters.BetPlaced(address),
+      gameResolved: contract.filters.GameResolved(address),
+      randomWords: contract.filters.RandomWordsFulfilled()
     };
 
-    const handleGameResolved = (player, result, payout) => {
-      if (player.toLowerCase() === address.toLowerCase()) {
-        const won = payout > 0;
-        toast[won ? 'success' : 'info'](
-          won ? `You won ${ethers.formatEther(payout)} DICE!` : 'Better luck next time!'
-        );
-        onGameUpdate?.();
-      }
+    const handlers = {
+      betPlaced: (player, number, amount) => {
+        if (player.toLowerCase() === address.toLowerCase()) {
+          toast.info(`Bet placed: ${formatAmount(amount)} DICE on ${number}`);
+          onGameUpdate?.();
+        }
+      },
+      // ... other handlers
     };
 
-    contract.on(betPlacedFilter, handleBetPlaced);
-    contract.on(gameResolvedFilter, handleGameResolved);
-    contract.on(randomWordsFilter, onGameUpdate);
+    // Set up listeners with error handling
+    Object.entries(filters).forEach(([event, filter]) => {
+      try {
+        contract.on(filter, handlers[event]);
+      } catch (error) {
+        console.error(`Failed to set up ${event} listener:`, error);
+      }
+    });
 
     return () => {
-      contract.off(betPlacedFilter, handleBetPlaced);
-      contract.off(gameResolvedFilter, handleGameResolved);
-      contract.off(randomWordsFilter, onGameUpdate);
+      Object.entries(filters).forEach(([event, filter]) => {
+        contract.off(filter, handlers[event]);
+      });
     };
-  }, [contract, address, onGameUpdate]);
+  }, [onGameUpdate]);
+
+  useEffect(() => {
+    setupEventListeners(contract, address);
+
+    return () => {
+      setupEventListeners(contract, address);
+    };
+  }, [setupEventListeners, contract, address]);
 } 

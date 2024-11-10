@@ -1,81 +1,64 @@
 import { toast } from 'react-toastify';
-import { ERROR_CODES } from './constants';
+
+export const ERROR_CODES = {
+  USER_REJECTED: 'ACTION_REJECTED',
+  INSUFFICIENT_FUNDS: 'INSUFFICIENT_FUNDS',
+  CONTRACT_ERROR: 'CONTRACT_ERROR',
+  NETWORK_ERROR: 'NETWORK_ERROR',
+  UNKNOWN_ERROR: 'UNKNOWN_ERROR'
+};
 
 export const handleError = (error, context = '') => {
   console.error(`Error in ${context}:`, error);
 
-  // Handle contract revert errors with more detail
+  // MetaMask and wallet errors
+  if (error?.code === 4001 || error?.code === 'ACTION_REJECTED') {
+    return {
+      code: ERROR_CODES.USER_REJECTED,
+      message: 'Transaction rejected by user'
+    };
+  }
+
+  // Contract errors
   if (error?.code === 'CALL_EXCEPTION') {
-    return {
-      code: error.code,
-      message: error.reason || 'Contract call failed. Please check the transaction.',
-      details: {
-        data: error.data,
-        transaction: error.transaction
-      }
-    };
-  }
-
-  // Handle contract revert errors (old style)
-  if (error?.code === -32000 && error?.message?.includes('execution reverted')) {
-    return {
-      code: error.code,
-      message: error.data?.message || 'Transaction failed. Please try again.',
-      details: error.data
-    };
-  }
-
-  // Handle user rejection
-  if (error?.code === 'ACTION_REJECTED' || error?.code === 4001) {
-    return {
-      code: error.code,
-      message: 'Transaction was rejected by user'
-    };
-  }
-
-  // Handle other common errors
-  if (error?.message) {
-    const message = error.message
-      .replace('MetaMask Tx Signature: ', '')
-      .replace('Error: ', '')
-      .substring(0, 150);
+    let message = 'Transaction failed';
     
+    if (error.reason?.includes('insufficient funds')) {
+      return {
+        code: ERROR_CODES.INSUFFICIENT_FUNDS,
+        message: 'Insufficient funds for transaction'
+      };
+    }
+
+    if (error.reason) {
+      message = error.reason;
+    }
+
     return {
-      code: error.code,
+      code: ERROR_CODES.CONTRACT_ERROR,
       message,
       details: error
     };
   }
 
-  // Default error
+  // Network errors
+  if (error?.code === 'NETWORK_ERROR' || error?.message?.includes('network')) {
+    return {
+      code: ERROR_CODES.NETWORK_ERROR,
+      message: 'Network connection error. Please check your connection and try again.'
+    };
+  }
+
+  // Generic error handler
   return {
-    code: 'UNKNOWN_ERROR',
-    message: 'An unexpected error occurred. Please try again.',
+    code: ERROR_CODES.UNKNOWN_ERROR,
+    message: error?.message || 'An unexpected error occurred',
     details: error
   };
 };
 
-export const formatErrorMessage = (error) => {
-  const { message } = handleError(error);
+export const showError = (error, context = '') => {
+  const { message } = handleError(error, context);
+  toast.error(message);
   return message;
 };
-
-export const isUserRejection = (error) => {
-  return error?.code === 'ACTION_REJECTED' || 
-         error?.code === 4001 ||
-         error?.message?.includes('User denied');
-};
-
-export const isNetworkError = (error) => {
-  return error.code === ERROR_CODES.NETWORK_ERROR;
-};
-
-export const isContractError = (error) => {
-  return error.code === ERROR_CODES.CONTRACT_ERROR;
-};
-
-export const logError = (error, context = '') => {
-  const { code, message } = handleError(error);
-  console.error(`[${context}] Error ${code}:`, message, error);
-  return { code, message };
-}; 
