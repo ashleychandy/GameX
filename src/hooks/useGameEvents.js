@@ -1,51 +1,75 @@
 import { useEffect, useCallback } from 'react';
-import { ethers } from 'ethers';
-import { toast } from 'react-toastify';
 import { useWallet } from '../contexts/WalletContext';
+import { toast } from 'react-toastify';
+import { formatAmount } from '../utils/format';
+import { parseGameStatus } from '../utils/contractHelpers';
 
 export function useGameEvents(onGameUpdate) {
-  const { diceContract: contract, address } = useWallet();
+  const { contract: dice, address } = useWallet();
 
-  const setupEventListeners = useCallback((contract, address) => {
-    if (!contract || !address) return;
+  const setupEventListeners = useCallback(() => {
+    if (!dice || !address) return;
 
-    const filters = {
-      betPlaced: contract.filters.BetPlaced(address),
-      gameResolved: contract.filters.GameResolved(address),
-      randomWords: contract.filters.RandomWordsFulfilled()
-    };
-
-    const handlers = {
-      betPlaced: (player, number, amount) => {
-        if (player.toLowerCase() === address.toLowerCase()) {
-          toast.info(`Bet placed: ${formatAmount(amount)} DICE on ${number}`);
-          onGameUpdate?.();
-        }
-      },
-      // ... other handlers
-    };
-
-    // Set up listeners with error handling
-    Object.entries(filters).forEach(([event, filter]) => {
-      try {
-        contract.on(filter, handlers[event]);
-      } catch (error) {
-        console.error(`Failed to set up ${event} listener:`, error);
+    // Game Started Event
+    const gameStartedFilter = dice.filters.GameStarted(address);
+    const handleGameStarted = (player, requestId, chosenNumber, amount, timestamp) => {
+      if (player.toLowerCase() === address.toLowerCase()) {
+        toast.info(
+          `Bet placed: ${chosenNumber} for ${formatAmount(amount)} tokens`
+        );
+        onGameUpdate?.();
       }
-    });
-
-    return () => {
-      Object.entries(filters).forEach(([event, filter]) => {
-        contract.off(filter, handlers[event]);
-      });
     };
-  }, [onGameUpdate]);
+
+    // Game Resolved Event
+    const gameResolvedFilter = dice.filters.GameResolved(address);
+    const handleGameResolved = (
+      player, 
+      requestId, 
+      chosenNumber, 
+      rolledNumber, 
+      amount, 
+      payout, 
+      status,
+      timestamp
+    ) => {
+      if (player.toLowerCase() === address.toLowerCase()) {
+        const statusText = parseGameStatus(status);
+        const message = payout > 0
+          ? `You won ${formatAmount(payout)} tokens!`
+          : 'Better luck next time!';
+        
+        toast[payout > 0 ? 'success' : 'info'](message);
+        onGameUpdate?.();
+      }
+    };
+
+    // Game Cancelled Event
+    const gameCancelledFilter = dice.filters.GameCancelled(address);
+    const handleGameCancelled = (player, requestId, reason) => {
+      if (player.toLowerCase() === address.toLowerCase()) {
+        toast.error(`Game cancelled: ${reason}`);
+        onGameUpdate?.();
+      }
+    };
+
+    // Set up listeners
+    dice.on(gameStartedFilter, handleGameStarted);
+    dice.on(gameResolvedFilter, handleGameResolved);
+    dice.on(gameCancelledFilter, handleGameCancelled);
+
+    // Cleanup function
+    return () => {
+      dice.off(gameStartedFilter, handleGameStarted);
+      dice.off(gameResolvedFilter, handleGameResolved);
+      dice.off(gameCancelledFilter, handleGameCancelled);
+    };
+  }, [dice, address, onGameUpdate]);
 
   useEffect(() => {
-    setupEventListeners(contract, address);
-
+    const cleanup = setupEventListeners();
     return () => {
-      setupEventListeners(contract, address);
+      if (cleanup) cleanup();
     };
-  }, [setupEventListeners, contract, address]);
+  }, [setupEventListeners]);
 } 

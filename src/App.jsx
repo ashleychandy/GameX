@@ -9,10 +9,18 @@ import { themes } from './styles/theme';
 import { GlobalStyle } from './styles/GlobalStyle';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 
+const theme = {
+  ...themes.dark,
+  shadow: {
+    md: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+    lg: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+  },
+};
+
 function App() {
   return (
-    <ErrorBoundary>
-      <ThemeProvider theme={themes.dark}>
+    <ThemeProvider theme={theme}>
+      <ErrorBoundary>
         <WalletProvider>
           <GameProvider>
             <GlobalStyle />
@@ -31,8 +39,8 @@ function App() {
             />
           </GameProvider>
         </WalletProvider>
-      </ThemeProvider>
-    </ErrorBoundary>
+      </ErrorBoundary>
+    </ThemeProvider>
   );
 }
 

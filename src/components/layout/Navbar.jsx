@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import styled from 'styled-components';
 import { motion } from 'framer-motion';
 import { Link, useLocation } from 'react-router-dom';
@@ -8,14 +8,16 @@ import { formatAddress, formatAmount } from '../../utils/helpers';
 import { toast } from 'react-toastify';
 import { handleError } from '../../utils/errorHandling';
 
-// Create motion components first
-const MotionNav = motion.nav;
-const MotionDiv = motion.div;
-
-const Nav = styled(MotionNav)`
-  background: ${({ theme }) => theme.surface};
-  border-bottom: 1px solid ${({ theme }) => theme.border};
+const Nav = styled(motion.nav)`
+  background: ${({ theme }) => `${theme.surface}CC`};
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid ${({ theme }) => `${theme.border}50`};
   padding: 1rem 2rem;
+  position: fixed;
+  width: 100%;
+  top: 0;
+  z-index: 1000;
+  box-shadow: 0 2px 8px ${({ theme }) => `${theme.shadow}20`};
 `;
 
 const NavContainer = styled.div`
@@ -24,68 +26,98 @@ const NavContainer = styled.div`
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 2rem;
 `;
 
 const NavLinks = styled.div`
   display: flex;
   gap: 2rem;
+  align-items: center;
 `;
 
-// Create a base Link component with motion
-const MotionLink = motion(Link);
+const Logo = styled(Link)`
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: ${({ theme }) => theme.text.primary};
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  
+  span {
+    background: ${({ theme }) => theme.gradients.primary};
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+`;
 
-const StyledNavLink = styled(MotionLink)`
+const StyledNavLink = styled(motion(Link))`
   color: ${({ theme, $active }) => 
     $active ? theme.primary : theme.text.secondary};
   text-decoration: none;
   font-weight: 500;
   position: relative;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  transition: all 0.2s ease;
 
   &:hover {
+    background: ${({ theme }) => `${theme.primary}10`};
     color: ${({ theme }) => theme.primary};
   }
 
-  &::after {
-    content: '';
-    position: absolute;
-    bottom: -4px;
-    left: 0;
-    width: 100%;
-    height: 2px;
-    background: ${({ theme }) => theme.primary};
-    transform: scaleX(${({ $active }) => ($active ? 1 : 0)});
-    transition: transform 0.2s ease;
-  }
+  ${({ $active, theme }) => $active && `
+    background: ${theme.primary}15;
+    color: ${theme.primary};
+  `}
 `;
 
 const WalletInfo = styled.div`
   display: flex;
   align-items: center;
   gap: 1rem;
+  background: ${({ theme }) => `${theme.background}80`};
+  padding: 0.5rem;
+  border-radius: 12px;
+  border: 1px solid ${({ theme }) => `${theme.border}30`};
 `;
 
 const Balance = styled.div`
   color: ${({ theme }) => theme.text.secondary};
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: ${({ theme }) => `${theme.background}50`};
+  border-radius: 8px;
   
   span {
-    margin-right: 0.5rem;
+    color: ${({ theme }) => theme.text.primary};
+    font-weight: 500;
   }
 `;
 
-const Address = styled(MotionDiv)`
+const Address = styled(motion.div)`
   padding: 0.5rem 1rem;
-  background: ${({ theme }) => theme.background};
+  background: ${({ theme }) => `${theme.primary}15`};
   border-radius: 8px;
   cursor: pointer;
+  font-size: 0.9rem;
+  color: ${({ theme }) => theme.primary};
+  font-weight: 500;
+  
+  &:hover {
+    background: ${({ theme }) => `${theme.primary}25`};
+  }
 `;
 
-// NavLink component with motion properties
 const NavLink = ({ to, children, $active }) => (
   <StyledNavLink
     to={to}
     $active={$active}
-    whileHover={{ scale: 1.05 }}
-    whileTap={{ scale: 0.95 }}
+    whileHover={{ scale: 1.02 }}
+    whileTap={{ scale: 0.98 }}
   >
     {children}
   </StyledNavLink>
@@ -122,6 +154,9 @@ export function Navbar() {
     >
       <NavContainer>
         <NavLinks>
+          <Logo to="/">
+            <span>GameX</span>Platform
+          </Logo>
           <NavLink to="/" $active={location.pathname === '/'}>
             Home
           </NavLink>
@@ -134,12 +169,12 @@ export function Navbar() {
             <>
               <Balance>
                 <span>Balance:</span>
-                {formatAmount(balance)} DICE
+                {formatAmount(balance)} GameX
               </Balance>
               <Address
                 onClick={handleAddressClick}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
               >
                 {formatAddress(address)}
               </Address>
@@ -147,6 +182,8 @@ export function Navbar() {
                 $variant="outline"
                 onClick={handleDisconnect}
                 disabled={isConnecting}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
               >
                 Disconnect
               </Button>
@@ -156,6 +193,8 @@ export function Navbar() {
               $variant="primary"
               onClick={handleConnect}
               disabled={isConnecting}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
             >
               {isConnecting ? 'Connecting...' : 'Connect Wallet'}
             </Button>

@@ -1,15 +1,9 @@
 import { ethers } from 'ethers';
 
 export const formatAmount = (amount) => {
+  if (!amount) return '0';
   try {
-    if (!amount) return '0';
-    
-    // Handle very large numbers safely
-    if (ethers.getBigInt(amount.toString()) > ethers.MaxUint256) {
-      return 'Amount too large';
-    }
-    
-    return ethers.formatEther(amount.toString());
+    return ethers.formatEther(amount);
   } catch (error) {
     console.error('Error formatting amount:', error);
     return '0';
@@ -17,6 +11,7 @@ export const formatAmount = (amount) => {
 };
 
 export const parseAmount = (amount) => {
+  if (!amount) return ethers.parseEther('0');
   try {
     return ethers.parseEther(amount.toString());
   } catch (error) {

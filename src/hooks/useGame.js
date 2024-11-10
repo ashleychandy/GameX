@@ -1,165 +1,159 @@
-import { useCallback, useEffect, useRef } from 'react';
-import { ethers } from 'ethers';
+import { useCallback, useRef, useState, useEffect } from 'react';
 import { useContract } from './useContract';
 import { useWallet } from '../contexts/WalletContext';
-import { useGameContext } from '../contexts/GameContext';
-import { handleTransaction } from '../utils/transactionUtils';
-import { validateBetAmount, validateGameData } from '../utils/validation';
-import { GAME_STATES, TRANSACTION_TYPES, POLLING_INTERVAL, CONTRACTS } from '../utils/constants';
 import { handleError } from '../utils/errorHandling';
-import DiceABI from '../abi/Dice.json';
+import { validateGameData } from '../utils/format';
+import { toast } from 'react-toastify';
+import { ethers } from 'ethers';
 
 export function useGame() {
   const { contract, isValid } = useContract('dice');
   const { address } = useWallet();
-  const { 
-    gameData,
-    isLoading,
-    error,
-    setLoading,
-    setError,
-    updateGameData,
-    resetGame
-  } = useGameContext();
+  const [gameData, setGameData] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
   
-  const pollingInterval = useRef(null);
-
   const fetchGameData = useCallback(async () => {
     if (!isValid || !contract || !address) return;
 
     try {
-      const data = await contract.getUserData(address);
-      
-      // Transform contract data into expected format
-      const transformedData = {
+      setIsLoading(true);
+      setError(null);
+
+      // Fetch all game data in parallel
+      const [userData, requestDetails, previousBets] = await Promise.all([
+        contract.getUserData(address),
+        contract.getCurrentRequestDetails(address),
+        contract.getPreviousBets(address)
+      ]);
+
+      const gameState = {
         currentGame: {
-          isActive: data.currentGame.isActive || false,
-          chosenNumber: data.currentGame.chosenNumber?.toString() || '0',
-          result: data.currentGame.result?.toString() || '0',
-          amount: data.currentGame.amount?.toString() || '0',
-          timestamp: data.currentGame.timestamp?.toString() || '0',
-          payout: data.currentGame.payout?.toString() || '0',
-          randomWord: data.currentGame.randomWord?.toString() || '0',
-          status: data.currentGame.status || 0
+          isActive: userData.currentGame.isActive,
+          chosenNumber: userData.currentGame.chosenNumber.toString(),
+          result: userData.currentGame.result.toString(),
+          amount: ethers.formatEther(userData.currentGame.amount),
+          timestamp: userData.currentGame.timestamp.toString(),
+          payout: ethers.formatEther(userData.currentGame.payout),
+          randomWord: userData.currentGame.randomWord.toString(),
+          status: userData.currentGame.status
         },
         stats: {
-          totalGames: data.totalGames?.toString() || '0',
-          totalBets: data.totalBets?.toString() || '0',
-          totalWinnings: data.totalWinnings?.toString() || '0',
-          totalLosses: data.totalLosses?.toString() || '0',
-          lastPlayed: data.lastPlayed?.toString() || '0'
-        }
+          totalGames: userData.totalGames.toString(),
+          totalBets: ethers.formatEther(userData.totalBets),
+          totalWinnings: ethers.formatEther(userData.totalWinnings),
+          totalLosses: ethers.formatEther(userData.totalLosses),
+          lastPlayed: userData.lastPlayed.toString()
+        },
+        requestDetails: {
+          requestId: requestDetails[0].toString(),
+          requestFulfilled: requestDetails[1],
+          requestActive: requestDetails[2]
+        },
+        previousBets: previousBets.map(bet => ({
+          chosenNumber: bet.chosenNumber.toString(),
+          rolledNumber: bet.rolledNumber.toString(),
+          amount: ethers.formatEther(bet.amount),
+          timestamp: bet.timestamp.toString()
+        }))
       };
 
-      // Now validate the transformed data
-      const validatedData = validateGameData(transformedData);
-      updateGameData(validatedData);
+      setGameData(gameState);
     } catch (error) {
       console.error('Error fetching game data:', error);
       setError(handleError(error).message);
+    } finally {
+      setIsLoading(false);
     }
-  }, [contract, address, isValid, updateGameData, setError]);
-
-  const startPolling = useCallback(() => {
-    if (pollingInterval.current) return;
-
-    pollingInterval.current = setInterval(() => {
-      fetchGameData();
-    }, POLLING_INTERVAL);
-  }, [fetchGameData]);
-
-  const stopPolling = useCallback(() => {
-    if (pollingInterval.current) {
-      clearInterval(pollingInterval.current);
-      pollingInterval.current = null;
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchGameData();
-    return () => stopPolling();
-  }, [fetchGameData, stopPolling]);
+  }, [contract, address, isValid]);
 
   const playDice = useCallback(async (number, amount) => {
-    if (!isValid || !contract) {
-      throw new Error('Contract not initialized');
+    if (!contract || !address) {
+      throw new Error('Contract or wallet not initialized');
     }
 
     try {
-      setLoading(true);
-      setError(null);
-
-      // Validate inputs
-      const validatedAmount = validateBetAmount(amount);
-      if (number < 1 || number > 6) {
-        throw new Error('Invalid number selection');
+      const canStart = await contract.canStartNewGame(address);
+      if (!canStart) {
+        throw new Error('Cannot start new game at this time');
       }
 
-      // Execute transaction
-      await handleTransaction(
-        () => contract.playDice(number, validatedAmount),
-        {
-          pendingMessage: 'Placing bet...',
-          successMessage: 'Bet placed successfully!',
-          errorMessage: 'Failed to place bet',
-          type: TRANSACTION_TYPES.PLAY
-        }
-      );
+      // Convert amount to BigNumber with proper decimals
+      const amountInWei = ethers.parseEther(amount.toString());
 
-      // Start polling for updates
-      startPolling();
+      const tx = await contract.playDice(number, amountInWei);
+      toast.info('Transaction submitted...');
+      await tx.wait();
       
+      await fetchGameData();
+      toast.success('Game started successfully!');
+      return tx;
     } catch (error) {
       const { message } = handleError(error);
-      setError(message);
+      toast.error(message);
       throw error;
-    } finally {
-      setLoading(false);
     }
-  }, [contract, isValid, setLoading, setError, startPolling]);
+  }, [contract, address, fetchGameData]);
 
   const resolveGame = useCallback(async () => {
-    if (!isValid || !contract) {
-      throw new Error('Contract not initialized');
-    }
-
-    if (!gameData?.currentGame?.isActive) {
-      throw new Error('No active game to resolve');
+    if (!contract || !address) {
+      throw new Error('Contract or wallet not initialized');
     }
 
     try {
-      setLoading(true);
-      setError(null);
-
-      await handleTransaction(
-        () => contract.resolveGame(),
-        {
-          pendingMessage: 'Resolving game...',
-          successMessage: 'Game resolved successfully!',
-          errorMessage: 'Failed to resolve game',
-          type: TRANSACTION_TYPES.RESOLVE
-        }
-      );
-
+      const tx = await contract.resolveGame();
+      toast.info('Resolving game...');
+      await tx.wait();
       await fetchGameData();
-      stopPolling();
-      
+      toast.success('Game resolved successfully!');
+      return tx;
     } catch (error) {
       const { message } = handleError(error);
-      setError(message);
+      toast.error(message);
       throw error;
-    } finally {
-      setLoading(false);
     }
-  }, [contract, isValid, gameData, fetchGameData, setLoading, setError, stopPolling]);
+  }, [contract, address, fetchGameData]);
+
+  const resetGame = useCallback(async () => {
+    setGameData(null);
+    setError(null);
+    await fetchGameData();
+  }, [fetchGameData]);
+
+  // Add pagination support
+  const fetchPaginatedBets = useCallback(async (offset = 0, limit = 10) => {
+    if (!contract || !address) return null;
+
+    try {
+      const [bets, total] = await contract.getPaginatedBets(address, offset, limit);
+      return {
+        bets: bets.map(bet => ({
+          chosenNumber: bet.chosenNumber.toString(),
+          rolledNumber: bet.rolledNumber.toString(),
+          amount: ethers.formatEther(bet.amount),
+          timestamp: bet.timestamp.toString()
+        })),
+        total: total.toString()
+      };
+    } catch (error) {
+      console.error('Error fetching paginated bets:', error);
+      throw error;
+    }
+  }, [contract, address]);
+
+  // Fetch game data on mount and when address changes
+  useEffect(() => {
+    fetchGameData();
+  }, [address, fetchGameData]);
 
   return {
     gameData,
-    playDice,
-    resolveGame,
     isLoading,
     error,
-    refreshGameData: fetchGameData,
-    resetGame
+    fetchGameData,
+    playDice,
+    resolveGame,
+    resetGame,
+    fetchPaginatedBets
   };
 }

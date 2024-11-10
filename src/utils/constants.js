@@ -41,14 +41,15 @@ export const GAME_STATES = Object.freeze({
 });
 
 // Game Configuration
-export const GAME_CONFIG = Object.freeze({
+export const GAME_CONFIG = {
   MIN_BET: ethers.parseEther('0.01'),
   MAX_BET: ethers.parseEther('100'),
   PAYOUT_MULTIPLIER: 6,
   MAX_NUMBER: 6,
   POLL_INTERVAL: 5000,
-  DEBOUNCE_DELAY: 500
-});
+  HISTORY_LIMIT: 10,
+  GAME_TIMEOUT: 3600 // 1 hour in seconds
+};
 
 // Error Messages
 export const ERROR_MESSAGES = {
@@ -75,7 +76,7 @@ export const TIME = {
 };
 
 // Error Codes
-export const ERROR_CODES = Object.freeze({
+export const ERROR_CODES = {
   USER_REJECTED: 4001,
   WALLET_DISCONNECTED: 4100,
   CHAIN_MISMATCH: 4902,
@@ -84,24 +85,23 @@ export const ERROR_CODES = Object.freeze({
   INVALID_BET: 'INVALID_BET',
   NETWORK_ERROR: -32603,
   TIMEOUT: -32008,
-  VALIDATION_ERROR: 'VALIDATION_ERROR',
   CONTRACT_ERROR: 'CONTRACT_ERROR'
-});
+};
 
 // Network Configuration
-export const SUPPORTED_CHAIN_ID = 11155111; // Sepolia testnet
+export const SUPPORTED_CHAIN_ID = 11155111; // Sepolia testnet chain ID
 
 // Network Configurations
 export const NETWORKS = {
   SEPOLIA: {
     chainId: 11155111,
     name: 'Sepolia',
-    rpcUrl: getEnvVar("SEPOLIA_TESTNET_RPC"),
-    explorer: getEnvVar("VITE_EXPLORER_URL"),
+    rpcUrl: import.meta.env.VITE_SEPOLIA_TESTNET_RPC || 'https://eth-sepolia.g.alchemy.com/v2/tha8qgVwehSf9EJLAT_qDNfbiFL7lGP5',
+    explorer: import.meta.env.VITE_EXPLORER_URL || 'https://sepolia.etherscan.io',
     contracts: {
-      dice: getEnvVar("VITE_DICE_GAME_ADDRESS"),
-      token: getEnvVar("VITE_TOKEN_ADDRESS"),
-      chainlink: getEnvVar("CHAIN_LINK_TOKEN")
+      dice: import.meta.env.VITE_DICE_GAME_ADDRESS,
+      token: import.meta.env.VITE_TOKEN_ADDRESS,
+      chainlink: import.meta.env.CHAIN_LINK_TOKEN
     }
   }
 };
@@ -127,8 +127,16 @@ export const ROLES = {
 };
 
 // Transaction Types
-export const TRANSACTION_TYPES = Object.freeze({
+export const TRANSACTION_TYPES = {
   APPROVE: 'APPROVE',
   PLAY: 'PLAY',
   RESOLVE: 'RESOLVE'
-});
+};
+
+export const GAME_STATUS = {
+  PENDING: 0,
+  STARTED: 1,
+  COMPLETED_WIN: 2,
+  COMPLETED_LOSS: 3,
+  CANCELLED: 4
+};

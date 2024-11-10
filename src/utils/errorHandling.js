@@ -10,71 +10,40 @@ export class AppError extends Error {
   }
 }
 
-export const handleError = (error, context = '') => {
-  console.error(`Error in ${context}:`, error);
+export const handleError = (error) => {
+  console.error('Error:', error);
 
-  // Handle ContractError
-  if (error.name === 'ContractError') {
-    return {
-      message: error.message,
-      code: error.code,
-      details: error.details
-    };
+  // Contract custom errors
+  if (error.errorName) {
+    switch (error.errorName) {
+      case 'InvalidBetParameters':
+        return { message: 'Invalid bet parameters', code: ERROR_CODES.INVALID_BET };
+      case 'InsufficientContractBalance':
+        return { message: 'Contract has insufficient balance', code: ERROR_CODES.INSUFFICIENT_BALANCE };
+      case 'InsufficientUserBalance':
+        return { message: 'Insufficient balance', code: ERROR_CODES.INSUFFICIENT_BALANCE };
+      case 'GameError':
+        return { message: 'Game error occurred', code: ERROR_CODES.GAME_IN_PROGRESS };
+      case 'VRFError':
+        return { message: 'Random number generation failed', code: ERROR_CODES.CONTRACT_ERROR };
+      case 'PayoutCalculationError':
+        return { message: 'Payout calculation failed', code: ERROR_CODES.CONTRACT_ERROR };
+    }
   }
 
-  // Handle ValidationError
-  if (error.name === 'ValidationError') {
-    return {
-      message: error.message,
-      code: ERROR_CODES.VALIDATION_ERROR,
-      details: { context }
-    };
-  }
-
-  // Handle MetaMask errors
+  // User rejection
   if (error.code === ERROR_CODES.USER_REJECTED) {
-    return {
-      message: 'Transaction rejected by user',
-      code: ERROR_CODES.USER_REJECTED
-    };
+    return { message: 'Transaction rejected by user', code: ERROR_CODES.USER_REJECTED };
   }
 
-  if (error.code === ERROR_CODES.CHAIN_MISMATCH) {
-    return {
-      message: 'Please switch to the correct network',
-      code: ERROR_CODES.CHAIN_MISMATCH
-    };
+  // Network errors
+  if (error.code === ERROR_CODES.NETWORK_ERROR) {
+    return { message: 'Network error occurred', code: ERROR_CODES.NETWORK_ERROR };
   }
 
-  // Handle network errors
-  if (error.message?.includes('network') || error.code === ERROR_CODES.NETWORK_ERROR) {
-    return {
-      message: 'Network error. Please check your connection',
-      code: ERROR_CODES.NETWORK_ERROR
-    };
-  }
-
-  // Handle timeout
-  if (error.code === ERROR_CODES.TIMEOUT) {
-    return {
-      message: 'Request timed out. Please try again',
-      code: ERROR_CODES.TIMEOUT
-    };
-  }
-
-  // Handle contract-specific errors
-  if (error.message?.includes('insufficient funds')) {
-    return {
-      message: ERROR_MESSAGES.INSUFFICIENT_USER_BALANCE,
-      code: ERROR_CODES.INSUFFICIENT_BALANCE
-    };
-  }
-
-  // Default error
   return {
     message: error.message || 'An unexpected error occurred',
-    code: error.code || ERROR_CODES.UNKNOWN_ERROR,
-    details: { context, originalError: error }
+    code: error.code || ERROR_CODES.CONTRACT_ERROR
   };
 };
 

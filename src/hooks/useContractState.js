@@ -1,21 +1,40 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useWallet } from '../contexts/WalletContext';
 import { handleError } from '../utils/errorHandling';
 
 export function useContractState(contract) {
-  const [state, setState] = useState(null);
+  const [gameData, setGameData] = useState(null);
+  const [requestDetails, setRequestDetails] = useState(null);
+  const [history, setHistory] = useState([]);
   const [error, setError] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const { address } = useWallet();
 
-  const fetchState = useCallback(async () => {
+  const fetchGameState = useCallback(async () => {
     if (!contract || !address) return;
     
     try {
       setIsLoading(true);
       setError(null);
-      const state = await contract.getState();
-      setState(state);
+
+      const [gameState, details, previousBets] = await Promise.all([
+        contract.getCurrentGame(address),
+        contract.getCurrentRequestDetails(address),
+        contract.getPreviousBets(address)
+      ]);
+
+      setGameData(gameState);
+      setRequestDetails({
+        requestId: details[0].toString(),
+        requestFulfilled: details[1],
+        requestActive: details[2]
+      });
+      setHistory(previousBets.map(bet => ({
+        chosenNumber: bet.chosenNumber.toString(),
+        rolledNumber: bet.rolledNumber.toString(),
+        amount: bet.amount.toString(),
+        timestamp: bet.timestamp.toString()
+      })));
     } catch (error) {
       const { message } = handleError(error);
       setError(message);
@@ -25,8 +44,15 @@ export function useContractState(contract) {
   }, [contract, address]);
 
   useEffect(() => {
-    fetchState();
-  }, [fetchState]);
+    fetchGameState();
+  }, [fetchGameState]);
 
-  return { state, error, isLoading, refetch: fetchState };
+  return {
+    gameData,
+    requestDetails,
+    history,
+    error,
+    isLoading,
+    refetch: fetchGameState
+  };
 } 
