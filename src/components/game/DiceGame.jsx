@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import styled from "styled-components";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "react-toastify";
 import { ethers } from 'ethers';
 import { Button } from "../common/Button";
@@ -17,10 +17,6 @@ import { GameProgress } from "./GameProgress";
 import { DiceRoll } from "./DiceRoll";
 import { useTokenApproval } from "../../hooks/useTokenApproval";
 import { formatAmount } from "../../utils/helpers";
-import { 
-  GAME_STATES, 
-  GAME_CONFIG
-} from '../../utils/constants';
 
 const GameContainer = styled(motion.div)`
   max-width: 1200px;
@@ -41,6 +37,10 @@ const MainSection = styled(GameCard)`
   min-height: 500px;
   display: flex;
   flex-direction: column;
+  background: ${({ theme }) => theme.surface};
+  border-radius: 24px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  backdrop-filter: blur(8px);
 `;
 
 const SideSection = styled.div`
@@ -57,6 +57,7 @@ const SideSection = styled.div`
 const GameHeader = styled.div`
   text-align: center;
   margin-bottom: 2rem;
+  padding: 2rem;
 
   h1 {
     font-size: 2.5rem;
@@ -64,10 +65,12 @@ const GameHeader = styled.div`
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     margin-bottom: 1rem;
+    font-weight: 700;
   }
 
   p {
     color: ${({ theme }) => theme.text.secondary};
+    font-size: 1.1rem;
   }
 `;
 
@@ -76,35 +79,28 @@ const GameControls = styled.div`
   flex-direction: column;
   gap: 2rem;
   margin-top: auto;
+  padding: 2rem;
 `;
 
 const BetInfo = styled.div`
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 1rem;
-  background: ${({ theme }) => theme.background};
-  border-radius: 12px;
+  padding: 1.5rem;
+  background: ${({ theme }) => theme.surface};
+  border-radius: 16px;
   margin-bottom: 1rem;
+  border: 1px solid ${({ theme }) => theme.border};
 
   span {
     color: ${({ theme }) => theme.text.secondary};
+    font-size: 0.9rem;
   }
 
   strong {
     color: ${({ theme }) => theme.text.primary};
-  }
-`;
-
-const BetControls = styled.div`
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 1rem;
-  align-items: center;
-  margin-bottom: 1rem;
-
-  @media (max-width: 768px) {
-    grid-template-columns: 1fr;
+    font-size: 1.1rem;
+    font-weight: 600;
   }
 `;
 
@@ -116,144 +112,101 @@ const QuickAmounts = styled.div`
 `;
 
 const QuickAmount = styled.button`
-  padding: 0.5rem 1rem;
-  border-radius: 9999px;
-  border: 1px solid ${({ theme }) => theme.border};
   background: ${({ theme }) => theme.surface};
+  border: 1px solid ${({ theme }) => theme.border};
+  border-radius: 12px;
+  padding: 0.5rem 1rem;
   color: ${({ theme }) => theme.text.primary};
   cursor: pointer;
   transition: all 0.2s ease;
 
   &:hover {
-    background: ${({ theme }) => theme.primary + '20'};
+    background: ${({ theme }) => `${theme.primary}20`};
     border-color: ${({ theme }) => theme.primary};
   }
 `;
 
-export function DiceGame() {
-  const [selectedNumber, setSelectedNumber] = useState(null);
-  const [betAmount, setBetAmount] = useState('');
-  const [isPlacingBet, setIsPlacingBet] = useState(false);
-  const [validationError, setValidationError] = useState('');
+const StatsContainer = styled(GameCard)`
+  padding: 1.5rem;
+  background: ${({ theme }) => theme.surface};
+  border-radius: 20px;
+`;
 
-  const { address, balance } = useWallet();
+export function DiceGame() {
+  const { balance, address } = useWallet();
+  const [selectedNumber, setSelectedNumber] = useState(null);
+  const [betAmount, setBetAmount] = useState("");
   const { isApproving, checkAndApprove } = useTokenApproval();
-  const { 
-    gameState,
-    currentGame,
-    playerStats,
-    previousBets,
-    requestDetails,
+  const {
+    placeBet,
     isLoading,
-    error,
-    playDice,
-    resolveGame,
-    refreshGameData
+    gameResult,
+    gameStats,
+    recentResults,
+    currentGame
   } = useGame();
 
-  const quickAmounts = ['10', '50', '100', '500'];
-
-  // Validate input amount
-  const validateAmount = (amount) => {
-    if (!amount) return 'Please enter an amount';
-    const parsedAmount = parseFloat(amount);
-    if (isNaN(parsedAmount)) return 'Invalid amount';
-    if (parsedAmount < GAME_CONFIG.MIN_BET) return `Minimum bet is ${GAME_CONFIG.MIN_BET}`;
-    if (parsedAmount > GAME_CONFIG.MAX_BET) return `Maximum bet is ${GAME_CONFIG.MAX_BET}`;
-    if (parsedAmount > parseFloat(formatAmount(balance))) return 'Insufficient balance';
-    return '';
-  };
+  const quickAmounts = [10, 50, 100, 500];
 
   const handleQuickAmount = (amount) => {
-    const error = validateAmount(amount);
-    setValidationError(error);
-    if (!error) {
-      setBetAmount(amount);
-    } else {
-      toast.warning(error);
-    }
+    setBetAmount(amount.toString());
   };
 
-  const handleBetAmountChange = (e) => {
-    const amount = e.target.value;
-    const error = validateAmount(amount);
-    setValidationError(error);
-    setBetAmount(amount);
-  };
-
-  const handlePlaceBet = async () => {
-    if (!address) {
-      toast.error('Please connect your wallet to play');
-      return;
-    }
-
+  const handleBet = async () => {
     if (!selectedNumber || !betAmount) {
-      toast.error('Please select a number and enter bet amount');
-      return;
-    }
-
-    const error = validateAmount(betAmount);
-    if (error) {
-      toast.error(error);
+      toast.error("Please select a number and enter bet amount");
       return;
     }
 
     try {
-      setIsPlacingBet(true);
-      
       // Check approval first
-      const approved = await checkAndApprove(ethers.parseEther(betAmount));
+      const approved = await checkAndApprove(betAmount);
       if (!approved) return;
 
-      await playDice(selectedNumber, betAmount);
-      
-      // Reset form
-      setSelectedNumber(null);
-      setBetAmount('');
-      setValidationError('');
-      
+      // Place bet
+      await placeBet(selectedNumber, betAmount);
     } catch (error) {
-      console.error('Error placing bet:', error);
-      toast.error(error.message || 'Failed to place bet');
-    } finally {
-      setIsPlacingBet(false);
+      handleError(error);
     }
   };
 
-  // Auto-refresh when game state changes
-  useEffect(() => {
-    if (gameState === 'COMPLETED_WIN' || gameState === 'COMPLETED_LOSS') {
-      refreshGameData();
-    }
-  }, [gameState, refreshGameData]);
+  const potentialWinnings = betAmount ? (parseFloat(betAmount) * 6).toFixed(2) : "0.00";
 
   return (
-    <GameContainer>
+    <GameContainer
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: 20 }}
+    >
       <MainSection>
         <GameHeader>
           <h1>Roll the Dice</h1>
           <p>Select a number, place your bet, and test your luck!</p>
         </GameHeader>
 
-        <NumberSelector 
+        <NumberSelector
           selectedNumber={selectedNumber}
           onSelect={setSelectedNumber}
-          disabled={!address || currentGame?.isActive || isPlacingBet}
-          min={GAME_CONFIG.MIN_NUMBER}
-          max={GAME_CONFIG.MAX_NUMBER}
+          disabled={isLoading || isApproving}
         />
 
-        <DiceRoll 
-          number={currentGame?.result || selectedNumber || 1}
-          isRolling={isLoading}
-          won={currentGame?.status === GAME_STATES.WON}
+        <AnimatePresence mode="wait">
+          {currentGame && (
+            <GameProgress game={currentGame} />
+          )}
+        </AnimatePresence>
+
+        <DiceRoll
+          rolling={isLoading}
+          result={gameResult?.number}
+          won={gameResult?.won}
         />
 
         <GameControls>
           <BetInfo>
             <div>
               <span>Balance: </span>
-              <strong>{address ? formatAmount(balance) : '0'} DICE</strong>
+              <strong>{formatAmount(balance)} DICE</strong>
             </div>
             <div>
               <span>Potential Win: </span>
@@ -266,93 +219,40 @@ export function DiceGame() {
               <QuickAmount
                 key={amount}
                 onClick={() => handleQuickAmount(amount)}
-                disabled={!address || currentGame?.isActive || isPlacingBet}
+                disabled={isLoading || isApproving}
               >
                 {amount} DICE
               </QuickAmount>
             ))}
           </QuickAmounts>
 
-          <BetControls>
-            <AmountInput
-              value={betAmount}
-              onChange={handleBetAmountChange}
-              disabled={!address || currentGame?.isActive || isPlacingBet}
-              min={ethers.formatEther(GAME_CONFIG.MIN_BET)}
-              max={ethers.formatEther(GAME_CONFIG.MAX_BET)}
-            />
-            <Button
-              $variant="secondary"
-              onClick={() => setBetAmount(formatAmount(balance))}
-              disabled={!address || currentGame?.isActive || isPlacingBet}
-            >
-              Max
-            </Button>
-          </BetControls>
+          <AmountInput
+            value={betAmount}
+            onChange={setBetAmount}
+            max={balance}
+            disabled={isLoading || isApproving}
+          />
 
-          {!address ? (
-            <Button
-              $variant="primary"
-              $fullWidth
-              to="/connect"
-            >
-              Connect Wallet to Play
-            </Button>
-          ) : (
-            <Button
-              $variant="primary"
-              $fullWidth
-              onClick={handlePlaceBet}
-              disabled={!canPlaceBet}
-            >
-              {isPlacingBet ? 'Placing Bet...' : 
-               isApproving ? 'Approving...' : 
-               'Place Bet'}
-            </Button>
-          )}
-
-          {canResolveGame && (
-            <Button
-              $variant="secondary"
-              $fullWidth
-              onClick={resolveGame}
-              disabled={isLoading}
-            >
-              {isLoading ? 'Resolving...' : 'Resolve Game'}
-            </Button>
-          )}
+          <Button
+            $variant="primary"
+            $fullWidth
+            disabled={!selectedNumber || !betAmount || isLoading || isApproving}
+            onClick={handleBet}
+          >
+            {isApproving ? "Approving..." : isLoading ? "Rolling..." : "Roll Dice"}
+          </Button>
         </GameControls>
-
-        <GameProgress 
-          gameState={gameState} 
-          isActive={currentGame?.isActive}
-          requestDetails={requestDetails}
-        />
       </MainSection>
 
       <SideSection>
-        {address ? (
-          <>
-            <GameStats 
-              stats={playerStats}
-              currentGame={currentGame}
-            />
-            <GameResults 
-              results={previousBets}
-              currentGame={currentGame}
-            />
-          </>
-        ) : (
-          <GameCard>
-            <h2>Connect Wallet</h2>
-            <p>Connect your wallet to view your game statistics and history.</p>
-          </GameCard>
-        )}
-      </SideSection>
+        <StatsContainer>
+          <GameStats stats={gameStats} />
+        </StatsContainer>
 
-      {(isLoading || isPlacingBet || isApproving) && (
-        <Loading />
-      )}
+        <StatsContainer>
+          <GameResults results={recentResults} />
+        </StatsContainer>
+      </SideSection>
     </GameContainer>
   );
 }

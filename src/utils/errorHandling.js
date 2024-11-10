@@ -1,26 +1,58 @@
 import { toast } from 'react-toastify';
 import { ERROR_CODES } from './constants';
 
-export const handleError = (error, fallback = 'An unexpected error occurred') => {
-  console.error('Error:', error);
+export const handleError = (error, context = '') => {
+  console.error(`Error in ${context}:`, error);
 
-  if (error?.code === 'ACTION_REJECTED') {
-    return 'Transaction was rejected by user';
+  // Handle contract revert errors with more detail
+  if (error?.code === 'CALL_EXCEPTION') {
+    return {
+      code: error.code,
+      message: error.reason || 'Contract call failed. Please check the transaction.',
+      details: {
+        data: error.data,
+        transaction: error.transaction
+      }
+    };
   }
 
+  // Handle contract revert errors (old style)
+  if (error?.code === -32000 && error?.message?.includes('execution reverted')) {
+    return {
+      code: error.code,
+      message: error.data?.message || 'Transaction failed. Please try again.',
+      details: error.data
+    };
+  }
+
+  // Handle user rejection
+  if (error?.code === 'ACTION_REJECTED' || error?.code === 4001) {
+    return {
+      code: error.code,
+      message: 'Transaction was rejected by user'
+    };
+  }
+
+  // Handle other common errors
   if (error?.message) {
-    // Clean up common Web3 error messages
-    let message = error.message
+    const message = error.message
       .replace('MetaMask Tx Signature: ', '')
-      .replace('Error: ', '');
-      
-    // Limit length for display
-    return message.length > 150 
-      ? message.substring(0, 150) + '...'
-      : message;
+      .replace('Error: ', '')
+      .substring(0, 150);
+    
+    return {
+      code: error.code,
+      message,
+      details: error
+    };
   }
 
-  return fallback;
+  // Default error
+  return {
+    code: 'UNKNOWN_ERROR',
+    message: 'An unexpected error occurred. Please try again.',
+    details: error
+  };
 };
 
 export const isUserRejection = (error) => {
@@ -38,8 +70,29 @@ export const isContractError = (error) => {
 };
 
 export const formatErrorMessage = (error) => {
-  const { message } = handleError(error);
-  return message;
+  if (error?.data?.message) {
+    return error.data.message;
+  }
+  
+  if (error?.message) {
+    // Remove common prefixes
+    let message = error.message
+      .replace('execution reverted: ', '')
+      .replace('MetaMask Tx Signature: ', '')
+      .replace('Error: ', '');
+      
+    // Handle specific error cases
+    if (message.includes('insufficient allowance')) {
+      return 'Please approve tokens before playing';
+    }
+    if (message.includes('user rejected')) {
+      return 'Transaction was cancelled';
+    }
+    
+    return message;
+  }
+  
+  return 'An unexpected error occurred';
 };
 
 export const logError = (error, context = '') => {

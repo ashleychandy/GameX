@@ -76,16 +76,15 @@ export function WalletProvider({ children }) {
         throw new Error('Please install MetaMask');
       }
 
-      // Request account access
       const accounts = await window.ethereum.request({ 
         method: 'eth_requestAccounts' 
       });
       
-      // Check network
       const chainId = await window.ethereum.request({ 
         method: 'eth_chainId' 
       });
       
+      // Check if we're on the correct network
       const formattedChainId = `0x${Number(SUPPORTED_CHAIN_ID).toString(16)}`;
       if (chainId !== formattedChainId) {
         await switchNetwork();
@@ -95,34 +94,53 @@ export function WalletProvider({ children }) {
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
       
-      // Initialize contracts with correct property names
-      const dice = new ethers.Contract(
-        contracts.dice.address,  // Changed from DICE_ADDRESS
-        contracts.dice.abi,      // Changed from DICE_ABI
-        signer
-      );
-      
-      const token = new ethers.Contract(
-        contracts.token.address, // Changed from TOKEN_ADDRESS
-        contracts.token.abi,     // Changed from TOKEN_ABI
-        signer
-      );
+      // Initialize contracts with proper error handling
+      try {
+        const dice = new ethers.Contract(
+          contracts.dice.address,
+          contracts.dice.abi,
+          signer
+        );
+        
+        const token = new ethers.Contract(
+          contracts.token.address,
+          contracts.token.abi,
+          signer
+        );
 
-      setIsConnected(true);
-      setAddress(address);
-      setSigner(signer);
-      setDiceContract(dice);
-      setTokenContract(token);
+        // Verify contracts are deployed
+        const [diceAddress, tokenAddress] = await Promise.all([
+          dice.getAddress(),
+          token.getAddress(),
+        ]);
 
-      // Store connection state
-      localStorage.setItem('walletConnected', 'true');
+        if (!diceAddress || !tokenAddress) {
+          throw new Error('Contract addresses are invalid');
+        }
 
-      await updateBalance(address);
+        // Basic method availability check
+        if (!dice.playDice || !token.balanceOf) {
+          throw new Error('Required contract methods not found');
+        }
+
+        setIsConnected(true);
+        setAddress(address);
+        setSigner(signer);
+        setDiceContract(dice);
+        setTokenContract(token);
+        
+        localStorage.setItem('walletConnected', 'true');
+        await updateBalance(address);
+
+      } catch (error) {
+        console.error('Contract initialization error:', error);
+        toast.error('Failed to initialize game contracts. Please check network configuration.');
+        throw new Error('Contract initialization failed: ' + error.message);
+      }
 
     } catch (error) {
-      const { message } = handleError(error);
-      toast.error(message);
-      throw error;
+      handleError(error, 'connectWallet');
+      throw error; // Re-throw to be handled by the UI
     }
   };
 

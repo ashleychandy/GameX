@@ -51,13 +51,13 @@ export const themes = {
     success: '#22c55e',
     warning: '#eab308',
     error: '#ef4444',
-    background: '#0f172a',
-    surface: '#1e293b',
-    border: '#334155',
+    background: '#f8fafc',
+    surface: '#ffffff',
+    border: '#e2e8f0',
     text: {
-      primary: '#f8fafc',
-      secondary: '#94a3b8',
-      inverse: '#0f172a'
+      primary: '#1e293b',
+      secondary: '#64748b',
+      inverse: '#f8fafc'
     },
     gradients: {
       primary: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
@@ -65,9 +65,9 @@ export const themes = {
       warning: 'linear-gradient(135deg, #eab308 0%, #ca8a04 100%)'
     },
     shadow: {
-      sm: '0 1px 2px 0 rgb(0 0 0 / 0.3)',
-      md: '0 4px 6px -1px rgb(0 0 0 / 0.4)',
-      lg: '0 10px 15px -3px rgb(0 0 0 / 0.5)'
+      sm: '0 1px 2px 0 rgb(0 0 0 / 0.05)',
+      md: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
+      lg: '0 10px 15px -3px rgb(0 0 0 / 0.1)'
     }
   },
   dark: {
@@ -117,27 +117,22 @@ export const createCSSVariables = (theme) => {
 export { themeConfig, baseTheme };
 
 export const theme = {
-  primary: '#6366f1',
-  secondary: '#4f46e5',
-  background: '#0f172a',
-  surface: '#1e293b',
-  surfaceHover: '#334155',
-  border: '#334155',
-  error: '#ef4444',
-  success: '#22c55e',
-  warning: '#f59e0b',
-  text: {
-    primary: '#f8fafc',
-    secondary: '#94a3b8',
-    inverse: '#ffffff'
+  colors: {
+    primary: '#6C5CE7',
+    secondary: '#A8A4FF',
+    cardBackground: 'rgba(255, 255, 255, 0.05)',
+    backgroundAlt: 'rgba(255, 255, 255, 0.02)',
+    error: '#FF6B6B',
+    success: '#51CF66'
   },
   gradients: {
-    primary: 'linear-gradient(45deg, #6366f1, #4f46e5)',
-    secondary: 'linear-gradient(45deg, #4f46e5, #3730a3)'
+    primary: 'linear-gradient(45deg, #6C5CE7, #A8A4FF)'
   },
-  shadow: {
-    sm: '0 1px 2px 0 rgb(0 0 0 / 0.05)',
-    md: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)',
-    lg: '0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)'
+  text: {
+    primary: '#FFFFFF',
+    secondary: 'rgba(255, 255, 255, 0.7)'
+  },
+  shadows: {
+    card: '0 8px 32px rgba(0, 0, 0, 0.1)'
   }
 }; 
