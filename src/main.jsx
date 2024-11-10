@@ -18,8 +18,8 @@ root.render(
     <App />
   </React.StrictMode>
 );
-
 // Enable hot module replacement for development
 if (import.meta.hot) {
   import.meta.hot.accept();
 }
+

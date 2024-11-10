@@ -71,59 +71,27 @@ const itemVariants = {
 export class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
-    this.state = { 
-      hasError: false, 
-      error: null,
-      errorInfo: null 
-    };
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
   }
 
   componentDidCatch(error, errorInfo) {
-    this.setState({
-      error,
-      errorInfo
-    });
-    
-    // Add error logging service integration
     console.error('Error caught by boundary:', error, errorInfo);
-    // Example: reportError(error, errorInfo);
   }
-
-  handleRefresh = () => {
-    window.location.reload();
-  };
-
-  handleReset = () => {
-    this.setState({ hasError: false, error: null });
-    this.props.onReset?.();
-  };
 
   render() {
     if (this.state.hasError) {
       return (
         <ErrorContainer>
-          <ErrorDetails>
-            {this.state.error?.toString()}
-            <pre>{this.state.errorInfo?.componentStack}</pre>
-          </ErrorDetails>
-          <ButtonGroup>
-            <Button
-              $variant="primary"
-              onClick={this.handleReset}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-            >
-              Try Again
-            </Button>
-            <Button
-              $variant="outline"
-              onClick={this.handleRefresh}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-            >
-              Refresh Page
-            </Button>
-          </ButtonGroup>
+          <ErrorIcon>⚠️</ErrorIcon>
+          <ErrorTitle>Something went wrong</ErrorTitle>
+          <ErrorMessage>{this.state.error?.message}</ErrorMessage>
+          <Button onClick={() => window.location.reload()}>
+            Reload Page
+          </Button>
         </ErrorContainer>
       );
     }

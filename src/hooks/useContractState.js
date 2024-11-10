@@ -1,42 +1,32 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useWallet } from '../contexts/WalletContext';
 import { handleError } from '../utils/helpers';
 
-export function useContractState() {
-  const { diceContract } = useWallet();
-  const [isPaused, setIsPaused] = useState(false);
-  const [contractBalance, setContractBalance] = useState('0');
-  const [totalGamesPlayed, setTotalGamesPlayed] = useState('0');
-  const [totalPayoutAmount, setTotalPayoutAmount] = useState('0');
+export function useContractState(contract) {
+  const [state, setState] = useState(null);
+  const [error, setError] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const { address } = useWallet();
 
-  const fetchContractState = useCallback(async () => {
-    if (!diceContract) return;
+  const fetchState = useCallback(async () => {
+    if (!contract || !address) return;
+    
     try {
-      const [paused, balance, games, payouts] = await Promise.all([
-        diceContract.paused(),
-        diceContract.getContractBalance(),
-        diceContract.totalGamesPlayed(),
-        diceContract.totalPayoutAmount()
-      ]);
-
-      setIsPaused(paused);
-      setContractBalance(balance.toString());
-      setTotalGamesPlayed(games.toString());
-      setTotalPayoutAmount(payouts.toString());
+      setIsLoading(true);
+      setError(null);
+      const state = await contract.getState();
+      setState(state);
     } catch (error) {
-      console.error('Error fetching contract state:', error);
+      const { message } = handleError(error);
+      setError(message);
+    } finally {
+      setIsLoading(false);
     }
-  }, [diceContract]);
+  }, [contract, address]);
 
   useEffect(() => {
-    fetchContractState();
-  }, [fetchContractState]);
+    fetchState();
+  }, [fetchState]);
 
-  return {
-    isPaused,
-    contractBalance,
-    totalGamesPlayed,
-    totalPayoutAmount,
-    refreshState: fetchContractState
-  };
+  return { state, error, isLoading, refetch: fetchState };
 } 

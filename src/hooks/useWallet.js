@@ -1,0 +1,8 @@
+import {
+  CHAIN_IDS,
+  NETWORKS,
+  CONTRACTS
+} from '../utils/constants';
+
+const DICE_CONTRACT_ADDRESS = CONTRACTS.DICE;
+const TOKEN_CONTRACT_ADDRESS = CONTRACTS.TOKEN;

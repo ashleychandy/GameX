@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useWallet } from '../contexts/WalletContext';
-import { handleError } from '../utils/helpers';
+import { handleError } from '../utils/errorHandling';
+import { contracts } from '../config';
 
 export function useGameStats() {
   const { diceContract, address } = useWallet();

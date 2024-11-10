@@ -17,7 +17,10 @@ import { GameProgress } from "./GameProgress";
 import { DiceRoll } from "./DiceRoll";
 import { useTokenApproval } from "../../hooks/useTokenApproval";
 import { formatAmount } from "../../utils/helpers";
-import { PAYOUT_MULTIPLIER } from "../../constants";
+import { 
+  GAME_STATES, 
+  GAME_CONFIG
+} from '../../utils/constants';
 
 const GameContainer = styled(motion.div)`
   max-width: 1200px;
@@ -100,17 +103,16 @@ export function DiceGame() {
   const { address, balance } = useWallet();
   const { isApproving, checkAndApprove } = useTokenApproval();
   const { 
-    isLoading,
     gameState,
     currentGame,
-    gameStats,
+    playerStats,
+    previousBets,
+    requestDetails,
+    isLoading,
     playDice,
     resolveGame,
-    fetchGameState
+    refreshGameData
   } = useGame();
-
-  const potentialWinnings = betAmount ? 
-    (parseFloat(betAmount) * PAYOUT_MULTIPLIER).toFixed(2) : "0.00";
 
   const handlePlaceBet = async () => {
     if (!address) {
@@ -127,11 +129,17 @@ export function DiceGame() {
       setIsPlacingBet(true);
       const amount = ethers.parseEther(betAmount);
       
+      // Validate bet amount
+      if (amount < GAME_CONFIG.MIN_BET || amount > GAME_CONFIG.MAX_BET) {
+        toast.error('Invalid bet amount');
+        return;
+      }
+
+      // Check approval first
       const approved = await checkAndApprove(amount);
       if (!approved) return;
 
       await playDice(selectedNumber, amount);
-      toast.success('Bet placed successfully!');
       
       setSelectedNumber(null);
       setBetAmount('');
@@ -144,44 +152,23 @@ export function DiceGame() {
     }
   };
 
-  const handleResolveGame = async () => {
-    try {
-      await resolveGame();
-      toast.success('Game resolved successfully!');
-    } catch (error) {
-      const { message } = handleError(error);
-      toast.error(message);
-    }
-  };
+  const canPlaceBet = !currentGame?.isActive && 
+                      selectedNumber >= GAME_CONFIG.MIN_NUMBER && 
+                      selectedNumber <= GAME_CONFIG.MAX_NUMBER &&
+                      betAmount && 
+                      !isPlacingBet && 
+                      !isApproving;
 
-  useEffect(() => {
-    const interval = setInterval(fetchGameState, 10000);
-    return () => clearInterval(interval);
-  }, [fetchGameState]);
+  const canResolveGame = currentGame?.isActive && 
+                        gameState === GAME_STATES.READY_TO_RESOLVE;
 
-  if (!address) {
-    return (
-      <GameContainer>
-        <MainSection>
-          <GameHeader>
-            <h1>Connect Wallet</h1>
-            <p>Please connect your wallet to play the game</p>
-          </GameHeader>
-        </MainSection>
-      </GameContainer>
-    );
-  }
-
-  if (isLoading && !currentGame) {
-    return <Loading />;
-  }
+  // Calculate potential winnings
+  const potentialWinnings = betAmount ? 
+    (parseFloat(betAmount) * GAME_CONFIG.PAYOUT_MULTIPLIER).toFixed(2) : 
+    "0.00";
 
   return (
-    <GameContainer
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-    >
+    <GameContainer>
       <MainSection>
         <GameHeader>
           <h1>Roll the Dice</h1>
@@ -191,13 +178,15 @@ export function DiceGame() {
         <NumberSelector 
           selectedNumber={selectedNumber}
           onSelect={setSelectedNumber}
-          disabled={isPlacingBet || currentGame?.isActive}
+          disabled={currentGame?.isActive || isPlacingBet}
+          min={GAME_CONFIG.MIN_NUMBER}
+          max={GAME_CONFIG.MAX_NUMBER}
         />
 
-        <DiceRoll
-          rolling={isPlacingBet || false}
+        <DiceRoll 
           number={currentGame?.result || selectedNumber || 1}
-          won={currentGame?.status === 'WON'}
+          isRolling={isLoading}
+          won={currentGame?.status === GAME_STATES.WON}
         />
 
         <GameControls>
@@ -215,41 +204,55 @@ export function DiceGame() {
           <AmountInput
             value={betAmount}
             onChange={setBetAmount}
-            disabled={isPlacingBet || currentGame?.isActive}
-            max={balance}
+            disabled={currentGame?.isActive || isPlacingBet}
+            min={ethers.formatEther(GAME_CONFIG.MIN_BET)}
+            max={ethers.formatEther(GAME_CONFIG.MAX_BET)}
           />
 
           <Button
             $variant="primary"
             $fullWidth
             onClick={handlePlaceBet}
-            disabled={!selectedNumber || !betAmount || isPlacingBet || isApproving || currentGame?.isActive}
+            disabled={!canPlaceBet}
           >
             {isPlacingBet ? 'Placing Bet...' : 
              isApproving ? 'Approving...' : 
              'Place Bet'}
           </Button>
-          
-          {currentGame?.isActive && currentGame?.status === 'READY_TO_RESOLVE' && (
+
+          {canResolveGame && (
             <Button
               $variant="secondary"
               $fullWidth
-              onClick={handleResolveGame}
+              onClick={resolveGame}
+              disabled={isLoading}
             >
-              Resolve Game
+              {isLoading ? 'Resolving...' : 'Resolve Game'}
             </Button>
           )}
-          
-          <GameProgress gameState={gameState} />
         </GameControls>
+
+        <GameProgress 
+          gameState={gameState} 
+          isActive={currentGame?.isActive}
+          requestDetails={requestDetails}
+        />
       </MainSection>
 
       <SideSection>
-        <GameStats stats={gameStats} />
-        <GameResults />
+        <GameStats 
+          stats={playerStats}
+          currentGame={currentGame}
+        />
+        <GameResults 
+          results={previousBets}
+          currentGame={currentGame}
+        />
       </SideSection>
+
+      {(isLoading || isPlacingBet || isApproving) && (
+        <Loading />
+      )}
     </GameContainer>
   );
 }
-
-export default DiceGame;

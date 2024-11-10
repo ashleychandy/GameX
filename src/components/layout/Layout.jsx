@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import styled from 'styled-components';
 import { motion } from 'framer-motion';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
 import { Navbar } from './Navbar';
 import { Footer } from './Footer';
 import diceLogo from '../../assets/dice-logo.svg';
+import { getRouteMetadata } from '../../routes';
 
 const LayoutContainer = styled.div`
   min-height: 100vh;
@@ -39,6 +40,15 @@ const Main = styled.main`
 `;
 
 export function Layout() {
+  const location = useLocation();
+  
+  useEffect(() => {
+    const { title } = getRouteMetadata(location.pathname);
+    if (title) {
+      document.title = `${title} | Crypto Dice Game`;
+    }
+  }, [location]);
+
   return (
     <LayoutContainer>
       <Header>

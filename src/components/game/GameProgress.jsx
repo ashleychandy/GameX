@@ -1,67 +1,81 @@
 import React from 'react';
 import styled from 'styled-components';
-import PropTypes from 'prop-types';
+import { motion } from 'framer-motion';
 
 const ProgressContainer = styled.div`
+  margin-top: 1rem;
   padding: 1rem;
+  background: ${({ theme }) => theme.background.secondary};
   border-radius: 12px;
-  background: ${({ theme }) => theme.surface};
-  border: 1px solid ${({ theme }) => theme.border};
 `;
 
-const ProgressStep = styled.div`
+const ProgressStep = styled(motion.div)`
   display: flex;
   align-items: center;
-  gap: 1rem;
   margin-bottom: 0.5rem;
-  color: ${({ $active, theme }) => $active ? theme.text.primary : theme.text.secondary};
+  color: ${({ $active, theme }) => 
+    $active ? theme.text.primary : theme.text.secondary};
 
   &:last-child {
     margin-bottom: 0;
   }
 `;
 
-const StepIndicator = styled.div`
+const StepNumber = styled.div`
   width: 24px;
   height: 24px;
   border-radius: 50%;
+  background: ${({ $active, theme }) => 
+    $active ? theme.primary : theme.background.tertiary};
+  color: ${({ theme }) => theme.text.primary};
   display: flex;
   align-items: center;
   justify-content: center;
-  background: ${({ $active, theme }) => $active ? theme.primary : theme.surface};
-  border: 2px solid ${({ $active, theme }) => $active ? theme.primary : theme.border};
-  color: ${({ $active, theme }) => $active ? theme.text.inverse : theme.text.secondary};
+  margin-right: 0.5rem;
+  font-size: 0.875rem;
 `;
 
-export function GameProgress({ gameState }) {
-  const steps = [
-    { id: 'PENDING', label: 'Place Your Bet' },
-    { id: 'WAITING_FOR_RANDOM', label: 'Waiting for Random Number' },
-    { id: 'READY_TO_RESOLVE', label: 'Ready to Resolve' },
-    { id: 'COMPLETED', label: 'Game Completed' }
-  ];
+const StepLabel = styled.span`
+  flex: 1;
+`;
 
-  const currentStepIndex = steps.findIndex(step => step.id === gameState);
+const RequestInfo = styled.div`
+  font-size: 0.875rem;
+  color: ${({ theme }) => theme.text.secondary};
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid ${({ theme }) => theme.border};
+`;
+
+export function GameProgress({ gameState, isActive, requestDetails }) {
+  const steps = [
+    { label: 'Place Bet', completed: isActive },
+    { label: 'Waiting for Random Number', completed: requestDetails?.requestFulfilled },
+    { label: 'Ready to Resolve', completed: gameState === 'READY_TO_RESOLVE' }
+  ];
 
   return (
     <ProgressContainer>
       {steps.map((step, index) => (
-        <ProgressStep 
-          key={step.id}
-          $active={index <= currentStepIndex}
+        <ProgressStep
+          key={index}
+          $active={step.completed}
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ delay: index * 0.1 }}
         >
-          <StepIndicator $active={index <= currentStepIndex}>
-            {index + 1}
-          </StepIndicator>
-          {step.label}
+          <StepNumber $active={step.completed}>{index + 1}</StepNumber>
+          <StepLabel>{step.label}</StepLabel>
         </ProgressStep>
       ))}
+      
+      {requestDetails?.requestId > 0 && (
+        <RequestInfo>
+          Request ID: {requestDetails.requestId}
+          {requestDetails.requestActive && ' (Active)'}
+          {requestDetails.requestFulfilled && ' (Fulfilled)'}
+        </RequestInfo>
+      )}
     </ProgressContainer>
   );
-}
-
-GameProgress.propTypes = {
-  gameState: PropTypes.oneOf(['PENDING', 'WAITING_FOR_RANDOM', 'READY_TO_RESOLVE', 'COMPLETED']).isRequired
-};
-
-export default GameProgress; 
+} 

@@ -1,8 +1,5 @@
 import React from 'react';
-import { Navigate } from 'react-router-dom';
 import styled from 'styled-components';
-import { useWallet } from '../contexts/WalletContext';
-import { useAdmin } from '../hooks/useAdmin';
 import { AdminPanel } from '../components/admin/AdminPanel';
 
 const Container = styled.div`
@@ -12,17 +9,6 @@ const Container = styled.div`
 `;
 
 export function AdminPage() {
-  const { isConnected } = useWallet();
-  const { isAdmin } = useAdmin();
-
-  if (!isConnected) {
-    return <Navigate to="/" replace />;
-  }
-
-  if (!isAdmin) {
-    return <Navigate to="/game" replace />;
-  }
-
   return (
     <Container>
       <AdminPanel />

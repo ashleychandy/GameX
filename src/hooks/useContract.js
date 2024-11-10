@@ -1,19 +1,7 @@
 import { useMemo } from 'react';
 import { ethers } from 'ethers';
 import { useWallet } from '../contexts/WalletContext';
-import DiceABI from '../abi/Dice.json';
-import TokenABI from '../abi/Token.json';
-
-const contracts = {
-  dice: {
-    address: import.meta.env.VITE_DICE_GAME_ADDRESS,
-    abi: DiceABI.abi
-  },
-  token: {
-    address: import.meta.env.VITE_TOKEN_ADDRESS,
-    abi: TokenABI.abi
-  }
-};
+import { contracts } from '../config';
 
 export function useContract(contractName) {
   const { signer } = useWallet();
