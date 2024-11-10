@@ -12,94 +12,74 @@ export function useGame() {
   const { contract: tokenContract } = useContract('token');
   
   const [gameData, setGameData] = useState({
-    currentGame: null,
-    playerStats: null,
+    currentGame: {
+      isActive: false,
+      chosenNumber: '0',
+      result: '0',
+      amount: '0',
+      timestamp: '0',
+      payout: '0',
+      randomWord: '0',
+      status: GAME_STATES.PENDING
+    },
+    playerStats: {
+      winRate: '0',
+      averageBet: '0',
+      totalGamesWon: '0',
+      totalGamesLost: '0'
+    },
     previousBets: [],
-    requestDetails: null,
-    gameState: GAME_STATES.PENDING
+    requestDetails: {
+      requestId: '0',
+      requestFulfilled: false,
+      requestActive: false
+    }
   });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // Add debug logging for contract initialization
-  useEffect(() => {
-    console.debug('Contract state updated:', {
-      hasContract: !!contract,
-      isValid,
-      contractAddress: contract?.target,
-      hasInterface: !!contract?.interface,
-      hasFunctions: !!contract?.interface?.functions,
-      availableMethods: contract?.interface ? Object.keys(contract.interface.functions || {}) : []
-    });
-  }, [contract, isValid]);
-
-  // Safe contract call wrapper with better error handling
-  const safeContractCall = async (method, ...args) => {
-    try {
-      if (!contract || !isValid) {
-        console.debug(`Contract not initialized for ${method}`, { 
-          contract: !!contract,
-          isValid,
-          address: contract?.target
-        });
-        throw new Error('Contract not initialized');
-      }
-
-      // Log contract state
-      console.debug(`Calling ${method}`, {
-        contractAddress: contract.target,
-        args,
-        signer: await contract.signer.getAddress(),
-        provider: contract.provider.connection.url
+  // Enhanced contract validation
+  const validateContract = useCallback(() => {
+    if (!contract || !isValid) {
+      console.debug('Contract not initialized:', {
+        hasContract: !!contract,
+        isValid,
+        address: contract?.target
       });
-
-      // Verify method exists on contract
-      if (typeof contract[method] !== 'function') {
-        console.error(`Method ${method} not found on contract`);
-        throw new Error(`Method ${method} does not exist on contract`);
-      }
-
-      try {
-        // Add gas estimation for debugging
-        const gasEstimate = await contract.estimateGas[method](...args);
-        console.debug(`Gas estimate for ${method}:`, gasEstimate.toString());
-
-        const result = await contract[method](...args);
-        console.debug(`${method} result:`, result);
-        return result;
-      } catch (error) {
-        // Enhanced error handling
-        if (error.code === 'CALL_EXCEPTION') {
-          const reason = error.reason || error.data?.message || 'Contract call failed';
-          console.error(`Contract call failed for ${method}:`, {
-            error,
-            args,
-            contractAddress: contract.target,
-            errorData: error.data
-          });
-          throw new Error(`${method} failed: ${reason}`);
-        }
-        throw error;
-      }
-    } catch (error) {
-      console.error(`Error calling ${method}:`, error);
-      throw error;
+      return false;
     }
-  };
+
+    // Verify required methods exist
+    const requiredMethods = [
+      'getCurrentGame',
+      'getPlayerStats',
+      'getPreviousBets',
+      'getCurrentRequestDetails',
+      'playDice'
+    ];
+
+    // Check if contract interface exists before filtering
+    if (!contract.interface) {
+      console.error('Contract interface is undefined');
+      return false;
+    }
+
+    const missingMethods = requiredMethods.filter(
+      method => !contract.interface.hasFunction(method)
+    );
+
+    if (missingMethods.length > 0) {
+      console.error('Missing required contract methods:', missingMethods);
+      return false;
+    }
+
+    return true;
+  }, [contract, isValid]);
 
   // Enhanced data fetching with better error handling
   const fetchGameData = useCallback(async () => {
-    if (!contract || !address || !isValid) {
-      console.debug('Prerequisites not met:', { 
-        hasContract: !!contract, 
-        address, 
-        isValid,
-        contractState: contract ? {
-          target: contract.target,
-          hasInterface: !!contract.interface,
-          hasFunctions: !!contract.interface?.functions
-        } : null
-      });
+    if (!validateContract() || !address) {
+      console.debug('Skipping fetchGameData - contract not ready or no address');
       setGameData(prev => ({...prev, gameState: GAME_STATES.PENDING}));
       return;
     }
@@ -108,68 +88,55 @@ export function useGame() {
       setIsLoading(true);
       setError(null);
 
-      // Validate contract interface before proceeding
-      if (!contract.interface || !contract.interface.functions) {
-        console.error('Contract interface not properly initialized:', {
-          hasInterface: !!contract.interface,
-          hasFunctions: !!contract.interface?.functions
-        });
-        throw new Error('Contract interface not properly initialized');
-      }
-
-      // Log contract state with safe access
-      console.debug('Contract state:', {
-        address: contract.target,
-        provider: contract.provider?.connection?.url,
-        signer: await contract.signer?.getAddress(),
-        methods: Object.keys(contract.interface.functions || {})
-      });
-
-      // Verify required methods exist
-      const requiredMethods = ['getGameStatus', 'getPlayerStats', 'getPreviousBets', 'getCurrentRequestDetails'];
-      const missingMethods = requiredMethods.filter(method => !contract.interface.functions[method]);
-      
-      if (missingMethods.length > 0) {
-        console.error('Missing required contract methods:', missingMethods);
-        throw new Error(`Missing required contract methods: ${missingMethods.join(', ')}`);
-      }
-
-      const [currentGameData, stats, history, requestData] = await Promise.allSettled([
-        safeContractCall('getGameStatus', address),
-        safeContractCall('getPlayerStats', address),
-        safeContractCall('getPreviousBets', address),
-        safeContractCall('getCurrentRequestDetails', address)
+      // Wrap each call in a try-catch to handle individual failures
+      const [currentGameData, stats, history, requestData] = await Promise.all([
+        contract.getCurrentGame(address).catch(err => {
+          console.error('Error fetching current game:', err);
+          return null;
+        }),
+        contract.getPlayerStats(address).catch(err => {
+          console.error('Error fetching player stats:', err);
+          return null;
+        }),
+        contract.getPreviousBets(address).catch(err => {
+          console.error('Error fetching previous bets:', err);
+          return [];
+        }),
+        contract.getCurrentRequestDetails(address).catch(err => {
+          console.error('Error fetching request details:', err);
+          return null;
+        })
       ]);
 
-      // Process results handling potential failures
+      // Process results with null checks
       setGameData({
-        currentGame: currentGameData.status === 'fulfilled' && currentGameData.value ? {
-          isActive: currentGameData.value.isActive,
-          chosenNumber: currentGameData.value.chosenNumber.toString(),
-          amount: currentGameData.value.amount.toString(),
-          timestamp: currentGameData.value.timestamp.toString(),
-          status: currentGameData.value.status
+        currentGame: currentGameData ? {
+          isActive: currentGameData.isActive ?? false,
+          chosenNumber: currentGameData.chosenNumber?.toString() || '0',
+          result: currentGameData.result?.toString() || '0',
+          amount: currentGameData.amount?.toString() || '0',
+          timestamp: currentGameData.timestamp?.toString() || '0',
+          payout: currentGameData.payout?.toString() || '0',
+          randomWord: currentGameData.randomWord?.toString() || '0',
+          status: currentGameData.status ?? GAME_STATES.PENDING
         } : null,
-        playerStats: stats.status === 'fulfilled' && stats.value ? {
-          winRate: stats.value.winRate.toString(),
-          averageBet: stats.value.averageBet.toString(),
-          totalGamesWon: stats.value.totalGamesWon.toString(),
-          totalGamesLost: stats.value.totalGamesLost.toString()
+        playerStats: stats ? {
+          winRate: stats.winRate?.toString() || '0',
+          averageBet: stats.averageBet?.toString() || '0',
+          totalGamesWon: stats.totalGamesWon?.toString() || '0',
+          totalGamesLost: stats.totalGamesLost?.toString() || '0'
         } : null,
-        previousBets: history.status === 'fulfilled' && Array.isArray(history.value) ? 
-          history.value.map(bet => ({
-            chosenNumber: bet.chosenNumber.toString(),
-            rolledNumber: bet.rolledNumber.toString(),
-            amount: bet.amount.toString(),
-            timestamp: bet.timestamp.toString()
-          })) : [],
-        requestDetails: requestData.status === 'fulfilled' && requestData.value ? {
-          requestId: requestData.value.requestId.toString(),
-          requestFulfilled: requestData.value.requestFulfilled,
-          requestActive: requestData.value.requestActive
-        } : null,
-        gameState: currentGameData.status === 'fulfilled' && currentGameData.value ? 
-          determineGameState(currentGameData.value) : GAME_STATES.PENDING
+        previousBets: Array.isArray(history) ? history.map(bet => ({
+          chosenNumber: bet.chosenNumber?.toString() || '0',
+          rolledNumber: bet.rolledNumber?.toString() || '0',
+          amount: bet.amount?.toString() || '0',
+          timestamp: bet.timestamp?.toString() || '0'
+        })) : [],
+        requestDetails: requestData ? {
+          requestId: requestData.requestId?.toString() || '0',
+          requestFulfilled: !!requestData.requestFulfilled,
+          requestActive: !!requestData.requestActive
+        } : null
       });
 
     } catch (error) {
@@ -177,16 +144,12 @@ export function useGame() {
       setError(formatErrorMessage(error));
       setGameData(prev => ({
         ...prev,
-        gameState: GAME_STATES.ERROR,
-        currentGame: null,
-        playerStats: null,
-        previousBets: [],
-        requestDetails: null
+        gameState: GAME_STATES.ERROR
       }));
     } finally {
       setIsLoading(false);
     }
-  }, [contract, address, isValid]);
+  }, [contract, address, validateContract]);
 
   // Improved play dice function
   const playDice = async (chosenNumber, amount) => {
@@ -266,12 +229,42 @@ export function useGame() {
     };
   }, [contract, address, isValid, fetchGameData]);
 
+  // Add missing contract interactions
+  const resolveGame = async () => {
+    if (!contract || !address || !isValid) {
+      throw new Error('Contract not initialized');
+    }
+
+    return safeContractCall('resolveGame');
+  };
+
+  const checkCanPlay = async () => {
+    if (!contract || !address || !isValid) return false;
+    return safeContractCall('canStartNewGame', address);
+  };
+
+  // Add a safe contract call helper
+  const safeContractCall = async (method, ...args) => {
+    if (!validateContract()) {
+      throw new Error('Contract not initialized');
+    }
+    try {
+      return await contract[method](...args);
+    } catch (error) {
+      console.error(`Error calling ${method}:`, error);
+      throw error;
+    }
+  };
+
   return {
-    ...gameData,
+    gameData,
+    playDice,
+    resolveGame,
+    checkCanPlay,
     isLoading,
     error,
-    playDice,
-    refreshGameData: fetchGameData
+    fetchGameData,
+    isContractValid: validateContract()
   };
 }
 

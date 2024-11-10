@@ -133,18 +133,9 @@ const StatsContainer = styled(GameCard)`
 `;
 
 export function DiceGame() {
-  const { balance, address } = useWallet();
-  const [selectedNumber, setSelectedNumber] = useState(null);
-  const [betAmount, setBetAmount] = useState("");
-  const { isApproving, checkAndApprove } = useTokenApproval();
-  const {
-    placeBet,
-    isLoading,
-    gameResult,
-    gameStats,
-    recentResults,
-    currentGame
-  } = useGame();
+  const { isConnected, address, balance } = useWallet();
+  const { gameData, playDice, resolveGame, isLoading, error } = useGame();
+  const { hasApproval, approveTokens, isApproving } = useTokenApproval();
 
   const quickAmounts = [10, 50, 100, 500];
 
@@ -152,25 +143,35 @@ export function DiceGame() {
     setBetAmount(amount.toString());
   };
 
-  const handleBet = async () => {
-    if (!selectedNumber || !betAmount) {
-      toast.error("Please select a number and enter bet amount");
+  const handlePlay = async (number, amount) => {
+    if (!isConnected) {
+      toast.error('Please connect your wallet');
       return;
     }
 
     try {
-      // Check approval first
-      const approved = await checkAndApprove(betAmount);
-      if (!approved) return;
-
-      // Place bet
-      await placeBet(selectedNumber, betAmount);
+      if (!hasApproval) {
+        await approveTokens(amount);
+      }
+      await playDice(number, amount);
     } catch (error) {
-      handleError(error);
+      toast.error(formatErrorMessage(error));
     }
   };
 
-  const potentialWinnings = betAmount ? (parseFloat(betAmount) * 6).toFixed(2) : "0.00";
+  const handleResolve = async () => {
+    try {
+      await resolveGame();
+    } catch (error) {
+      toast.error(formatErrorMessage(error));
+    }
+  };
+
+  // Add check for pending VRF request
+  const canResolve = gameData?.currentGame?.isActive && 
+                    gameData?.requestDetails?.requestFulfilled;
+
+  const potentialWinnings = gameData?.currentGame?.amount ? (parseFloat(gameData.currentGame.amount) * 6).toFixed(2) : "0.00";
 
   return (
     <GameContainer
@@ -185,21 +186,21 @@ export function DiceGame() {
         </GameHeader>
 
         <NumberSelector
-          selectedNumber={selectedNumber}
-          onSelect={setSelectedNumber}
+          selectedNumber={gameData?.currentGame?.chosenNumber}
+          onSelect={handlePlay}
           disabled={isLoading || isApproving}
         />
 
         <AnimatePresence mode="wait">
-          {currentGame && (
-            <GameProgress game={currentGame} />
+          {gameData?.currentGame?.isActive && (
+            <GameProgress game={gameData.currentGame} />
           )}
         </AnimatePresence>
 
         <DiceRoll
           rolling={isLoading}
-          result={gameResult?.number}
-          won={gameResult?.won}
+          result={gameData?.currentGame?.result}
+          won={gameData?.currentGame?.result > 0}
         />
 
         <GameControls>
@@ -227,8 +228,8 @@ export function DiceGame() {
           </QuickAmounts>
 
           <AmountInput
-            value={betAmount}
-            onChange={setBetAmount}
+            value={gameData?.currentGame?.amount}
+            onChange={handlePlay}
             max={balance}
             disabled={isLoading || isApproving}
           />
@@ -236,21 +237,28 @@ export function DiceGame() {
           <Button
             $variant="primary"
             $fullWidth
-            disabled={!selectedNumber || !betAmount || isLoading || isApproving}
-            onClick={handleBet}
+            disabled={!gameData?.currentGame?.chosenNumber || !gameData?.currentGame?.amount || isLoading || isApproving}
+            onClick={handlePlay}
           >
             {isApproving ? "Approving..." : isLoading ? "Rolling..." : "Roll Dice"}
+          </Button>
+
+          <Button 
+            onClick={handleResolve}
+            disabled={!canResolve || isLoading}
+          >
+            Resolve Game
           </Button>
         </GameControls>
       </MainSection>
 
       <SideSection>
         <StatsContainer>
-          <GameStats stats={gameStats} />
+          <GameStats stats={gameData?.playerStats} />
         </StatsContainer>
 
         <StatsContainer>
-          <GameResults results={recentResults} />
+          <GameResults results={gameData?.previousBets} />
         </StatsContainer>
       </SideSection>
     </GameContainer>
