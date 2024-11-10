@@ -3,7 +3,7 @@ import { ethers } from 'ethers';
 import { toast } from 'react-toastify';
 import { useContract } from './useContract';
 import { useWallet } from '../contexts/WalletContext';
-import { handleError } from '../utils/helpers';
+import { handleError } from '../utils/errorHandling';
 
 export const GAME_STATES = {
   PENDING: 'PENDING',

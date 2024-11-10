@@ -6,7 +6,7 @@ import { Button } from '../common/Button';
 import { Input } from '../common/Input';
 import { useWallet } from '../../contexts/WalletContext';
 import { useAdmin } from '../../hooks/useAdmin';
-import { handleError } from '../../utils/helpers';
+import { handleError } from '../utils/errorHandling';
 
 const AdminContainer = styled(motion.div)`
   max-width: 1200px;

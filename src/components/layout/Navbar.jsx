@@ -27,7 +27,7 @@ const NavLinks = styled.div`
   gap: 2rem;
 `;
 
-const NavLink = styled(motion(Link))`
+const NavLink = styled(motion.create(Link))`
   color: ${({ $active, theme }) => 
     $active ? theme.primary : theme.text.secondary};
   font-weight: 500;

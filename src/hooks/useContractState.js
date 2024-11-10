@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useWallet } from '../contexts/WalletContext';
-import { handleError } from '../utils/helpers';
+import { handleError } from '../utils/errorHandling';
 
 export function useContractState(contract) {
   const [state, setState] = useState(null);

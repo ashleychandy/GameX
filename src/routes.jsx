@@ -5,21 +5,19 @@ import { ErrorBoundary } from "./components/common/ErrorBoundary";
 import Loading from "./components/common/Loading";
 import { useWallet } from "./contexts/WalletContext";
 import { GAME_CONFIG } from "./utils/constants";
-import ErrorHandler from "./components/common/ErrorHandler";
+import { ErrorHandler } from "./components/common/ErrorHandler";
 
-// Add role-based route protection component first
+// Modify ProtectedRoute to only protect specific actions rather than entire pages
 const ProtectedRoute = ({ children, requireAdmin, requireAuth }) => {
   const { isConnected, isAdmin } = useWallet();
   const location = useLocation();
 
-  if (!isConnected && requireAuth) {
-    return <Navigate to="/" state={{ from: location }} replace />;
-  }
-
+  // Only protect admin routes
   if (requireAdmin && !isAdmin) {
     return <Navigate to="/game" replace />;
   }
 
+  // For auth-required routes, render children but components will handle connection state
   return children;
 };
 
@@ -131,7 +129,16 @@ const routerConfig = {
 };
 
 // Create and export router instance
-export const router = createBrowserRouter([routerConfig]);
+export const router = createBrowserRouter([routerConfig], {
+  future: {
+    v7_startTransition: true,
+    v7_relativeSplatPath: true,
+    v7_fetcherPersist: true,
+    v7_normalizeFormMethod: true,
+    v7_partialHydration: true,
+    v7_skipActionErrorRevalidation: true
+  }
+});
 
 // Route metadata helper
 export const getRouteMetadata = (pathname) => {
