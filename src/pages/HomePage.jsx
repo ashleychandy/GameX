@@ -351,36 +351,36 @@ export function HomePage() {
         <h2>Available Games</h2>
         <GamesGrid>
           {games.map((game) => (
-            <GameItem
+            <motion.div
               key={game.id}
               as={game.live ? Link : 'div'}
-              to={game.live ? game.path : undefined}
-              $disabled={!game.live}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              whileHover={game.live ? { scale: 1.02 } : {}}
+              whileHover={game.live ? { scale: 1.02 } : undefined}
               transition={{ duration: 0.2 }}
             >
-              <GameStatus $live={game.live}>
-                {game.live ? "Live" : "Coming Soon"}
-              </GameStatus>
-              <GameContent>
-                <div className="icon">{game.icon}</div>
-                <h3>{game.name}</h3>
-                <p>{game.description}</p>
-                <PlayButton
-                  $variant={game.live ? "primary" : "secondary"}
-                  disabled={!game.live}
-                  onClick={(e) => {
-                    if (!game.live) {
-                      e.preventDefault();
-                    }
-                  }}
-                >
-                  {game.live ? "Play Now" : "Coming Soon"}
-                </PlayButton>
-              </GameContent>
-            </GameItem>
+              <GameItem $disabled={!game.live}>
+                <GameStatus $live={game.live}>
+                  {game.live ? "Live" : "Coming Soon"}
+                </GameStatus>
+                <GameContent>
+                  <div className="icon">{game.icon}</div>
+                  <h3>{game.name}</h3>
+                  <p>{game.description}</p>
+                  <PlayButton
+                    $variant={game.live ? "primary" : "secondary"}
+                    disabled={!game.live}
+                    onClick={(e) => {
+                      if (!game.live) {
+                        e.preventDefault();
+                      }
+                    }}
+                  >
+                    {game.live ? "Play Now" : "Coming Soon"}
+                  </PlayButton>
+                </GameContent>
+              </GameItem>
+            </motion.div>
           ))}
         </GamesGrid>
       </GamesSection>
