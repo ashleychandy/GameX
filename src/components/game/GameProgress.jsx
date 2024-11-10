@@ -1,6 +1,7 @@
 import React from 'react';
 import styled from 'styled-components';
 import { motion } from 'framer-motion';
+import { GAME_STATES } from '../../utils/constants';
 
 const ProgressContainer = styled.div`
   margin-top: 1rem;
@@ -47,33 +48,40 @@ const RequestInfo = styled.div`
   border-top: 1px solid ${({ theme }) => theme.border};
 `;
 
+const ProgressMessage = styled.div`
+  font-size: 1rem;
+  color: ${({ theme }) => theme.text.primary};
+  margin-bottom: 0.5rem;
+`;
+
 export function GameProgress({ gameState, isActive, requestDetails }) {
-  const steps = [
-    { label: 'Place Bet', completed: isActive },
-    { label: 'Waiting for Random Number', completed: requestDetails?.requestFulfilled },
-    { label: 'Ready to Resolve', completed: gameState === 'READY_TO_RESOLVE' }
-  ];
+  const getProgressMessage = () => {
+    if (!isActive) return "Ready to play";
+    
+    switch (gameState) {
+      case GAME_STATES.STARTED:
+        return "Waiting for Chainlink VRF...";
+      case GAME_STATES.WAITING_FOR_RESULT:
+        return "Random number requested...";
+      case GAME_STATES.READY_TO_RESOLVE:
+        return "Ready to resolve game!";
+      case GAME_STATES.WON:
+        return "Congratulations! You won!";
+      case GAME_STATES.LOST:
+        return "Better luck next time!";
+      default:
+        return "Place your bet";
+    }
+  };
 
   return (
     <ProgressContainer>
-      {steps.map((step, index) => (
-        <ProgressStep
-          key={index}
-          $active={step.completed}
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: index * 0.1 }}
-        >
-          <StepNumber $active={step.completed}>{index + 1}</StepNumber>
-          <StepLabel>{step.label}</StepLabel>
-        </ProgressStep>
-      ))}
-      
+      <ProgressMessage>{getProgressMessage()}</ProgressMessage>
       {requestDetails?.requestId > 0 && (
         <RequestInfo>
           Request ID: {requestDetails.requestId}
-          {requestDetails.requestActive && ' (Active)'}
-          {requestDetails.requestFulfilled && ' (Fulfilled)'}
+          {requestDetails.requestActive && " (Active)"}
+          {requestDetails.requestFulfilled && " (Fulfilled)"}
         </RequestInfo>
       )}
     </ProgressContainer>

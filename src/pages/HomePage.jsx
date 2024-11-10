@@ -8,6 +8,8 @@ import { Loading } from "../components/common/Loading";
 import { formatAmount, formatNumber } from "../utils/helpers";
 import { Button } from "../components/common/Button";
 import { toast } from "react-toastify";
+import { ethers } from "ethers";
+import { MotionLink } from '../components/common/MotionLink';
 
 const HomeContainer = styled(motion.div)`
   max-width: 1200px;
@@ -157,7 +159,7 @@ const PlayButton = styled(Button)`
   min-width: 150px;
 `;
 
-const CTAButton = styled(Button)`
+const CTAButton = styled(motion.button)`
   padding: 1rem 2.5rem;
   font-size: 1.2rem;
   margin-top: 2rem;
@@ -201,19 +203,19 @@ export function HomePage() {
 
       try {
         setIsLoading(true);
-        const [totalSupply, diceBalance, totalGames, totalPayout] =
-          await Promise.all([
-            token.totalSupply(),
-            token.balanceOf(dice.address),
-            dice.totalGamesPlayed(),
-            dice.totalPayoutAmount(),
-          ]);
+        
+        const [totalSupply, diceBalance, totalGames, totalPayout] = await Promise.all([
+          token.totalSupply?.() || Promise.resolve(0),
+          token.balanceOf?.(dice?.address || ethers.ZeroAddress) || Promise.resolve(0),
+          dice.totalGamesPlayed?.() || Promise.resolve(0),
+          dice.totalPayoutAmount?.() || Promise.resolve(0),
+        ]);
 
         setStats({
-          totalSupply: formatAmount(totalSupply),
-          diceBalance: formatAmount(diceBalance),
-          totalGames: formatNumber(totalGames.toString()),
-          totalPayout: formatAmount(totalPayout),
+          totalSupply: formatAmount(totalSupply || 0),
+          diceBalance: formatAmount(diceBalance || 0),
+          totalGames: formatNumber(totalGames?.toString() || '0'),
+          totalPayout: formatAmount(totalPayout || 0),
         });
       } catch (error) {
         console.error("Error fetching stats:", error);
@@ -225,8 +227,7 @@ export function HomePage() {
     };
 
     fetchStats();
-    // Set up polling for stats updates
-    const interval = setInterval(fetchStats, 30000); // Update every 30 seconds
+    const interval = setInterval(fetchStats, 30000);
     return () => clearInterval(interval);
   }, [isConnected, token, dice]);
 
@@ -263,7 +264,14 @@ export function HomePage() {
       animate={{ opacity: 1 }}
       transition={{ duration: 0.5 }}
     >
-      <Hero>
+      <Hero
+        initial="hidden"
+        animate="visible"
+        variants={{
+          hidden: { opacity: 0 },
+          visible: { opacity: 1 }
+        }}
+      >
         <motion.h1
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
@@ -280,9 +288,10 @@ export function HomePage() {
           Play, win, and earn crypto tokens in a transparent environment.
         </motion.p>
         <CTAButton
-          as={Link}
+          as={motion(Link)}
           to="/game"
           $variant="primary"
+          animate={{ opacity: 1 }}
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
         >
@@ -343,9 +352,12 @@ export function HomePage() {
           {games.map((game, index) => (
             <GameItem
               key={game.id}
-              initial={{ y: 20, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: 0.2 * index }}
+              as={MotionLink}
+              to={game.path}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              whileHover={{ scale: 1.02 }}
+              transition={{ duration: 0.2 }}
             >
               <GameStatus $live={game.live}>
                 {game.live ? "Live" : "Coming Soon"}

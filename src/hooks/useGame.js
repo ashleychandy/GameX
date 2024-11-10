@@ -10,23 +10,30 @@ export const GAME_STATES = {
   STARTED: 'STARTED',
   COMPLETED_WIN: 'COMPLETED_WIN',
   COMPLETED_LOSS: 'COMPLETED_LOSS',
-  CANCELLED: 'CANCELLED'
+  CANCELLED: 'CANCELLED',
+  READY_TO_RESOLVE: 'READY_TO_RESOLVE',
+  WAITING_FOR_RESULT: 'WAITING_FOR_RESULT'
 };
 
 export function useGame() {
-  const [isLoading, setIsLoading] = useState(false);
   const [currentGame, setCurrentGame] = useState(null);
   const [playerStats, setPlayerStats] = useState(null);
   const [previousBets, setPreviousBets] = useState([]);
   const [requestDetails, setRequestDetails] = useState(null);
   const [gameState, setGameState] = useState(GAME_STATES.PENDING);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const { contract } = useContract('Dice');
-  const { address } = useWallet();
+  const { contract, address } = useWallet();
 
-  // Fetch all game data
   const fetchGameData = useCallback(async () => {
-    if (!contract || !address) return;
+    if (!contract || !address) {
+      setCurrentGame(null);
+      setPlayerStats(null);
+      setPreviousBets([]);
+      setRequestDetails(null);
+      setGameState(GAME_STATES.PENDING);
+      return;
+    }
 
     try {
       const [
@@ -43,37 +50,34 @@ export function useGame() {
         contract.canStartNewGame(address)
       ]);
 
-      // Update current game state
-      setCurrentGame({
+      // Update current game state with proper null checks
+      const gameData = {
         isActive: userData.currentGame.isActive,
         chosenNumber: userData.currentGame.chosenNumber.toNumber(),
         result: userData.currentGame.result.toNumber(),
         amount: ethers.formatEther(userData.currentGame.amount),
         timestamp: userData.currentGame.timestamp.toNumber(),
         payout: ethers.formatEther(userData.currentGame.payout),
-        status: GAME_STATES[userData.currentGame.status]
-      });
+        status: GAME_STATES[userData.currentGame.status] || GAME_STATES.PENDING
+      };
+      setCurrentGame(gameData);
 
-      // Update player stats
+      // Update player stats with proper formatting
       setPlayerStats({
         winRate: stats.winRate.toNumber() / 100, // Convert basis points to percentage
         averageBet: ethers.formatEther(stats.averageBet),
         totalGamesWon: stats.totalGamesWon.toNumber(),
-        totalGamesLost: stats.totalGamesLost.toNumber(),
-        totalGames: userData.totalGames.toNumber(),
-        totalBets: ethers.formatEther(userData.totalBets),
-        totalWinnings: ethers.formatEther(userData.totalWinnings),
-        totalLosses: ethers.formatEther(userData.totalLosses),
-        lastPlayed: userData.lastPlayed.toNumber()
+        totalGamesLost: stats.totalGamesLost.toNumber()
       });
 
-      // Update previous bets
-      setPreviousBets(previousBetsData.map(bet => ({
+      // Format previous bets data
+      const formattedBets = previousBetsData.map(bet => ({
         chosenNumber: bet.chosenNumber.toNumber(),
         rolledNumber: bet.rolledNumber.toNumber(),
         amount: ethers.formatEther(bet.amount),
         timestamp: bet.timestamp.toNumber()
-      })));
+      }));
+      setPreviousBets(formattedBets);
 
       // Update request details
       setRequestDetails({
@@ -83,10 +87,12 @@ export function useGame() {
       });
 
       // Determine game state
-      if (!userData.currentGame.isActive) {
+      if (!gameData.isActive) {
         setGameState(GAME_STATES.PENDING);
       } else if (requestInfo.requestFulfilled) {
-        setGameState('READY_TO_RESOLVE');
+        setGameState(GAME_STATES.READY_TO_RESOLVE);
+      } else if (requestInfo.requestActive) {
+        setGameState(GAME_STATES.WAITING_FOR_RESULT);
       } else {
         setGameState(GAME_STATES.STARTED);
       }
@@ -97,18 +103,17 @@ export function useGame() {
     }
   }, [contract, address]);
 
-  // Auto-refresh game data
+  // Polling interval for game updates
   useEffect(() => {
     if (contract && address) {
       fetchGameData();
       
-      // Set up polling for game updates
       const interval = setInterval(fetchGameData, 5000);
       return () => clearInterval(interval);
     }
   }, [contract, address, fetchGameData]);
 
-  // Play dice function
+  // Play dice function with proper error handling
   const playDice = async (chosenNumber, amount) => {
     if (!contract || !address) return;
     
@@ -120,14 +125,15 @@ export function useGame() {
       toast.success('Bet placed successfully!');
       await fetchGameData();
     } catch (error) {
-      const { message } = handleError(error);
-      toast.error(message);
+      console.error('Error placing bet:', error);
+      const errorMessage = error.reason || error.message || 'Transaction failed';
+      toast.error(`Failed to place bet: ${errorMessage}`);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Resolve game function
+  // Resolve game function with proper error handling
   const resolveGame = async () => {
     if (!contract || !address) return;
     
@@ -138,41 +144,23 @@ export function useGame() {
       toast.success('Game resolved successfully!');
       await fetchGameData();
     } catch (error) {
-      const { message } = handleError(error);
-      toast.error(message);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Set history size
-  const setHistorySize = async (newSize) => {
-    if (!contract || !address) return;
-    
-    setIsLoading(true);
-    try {
-      const tx = await contract.setHistorySize(newSize);
-      await tx.wait();
-      toast.success('History size updated successfully!');
-      await fetchGameData();
-    } catch (error) {
-      const { message } = handleError(error);
-      toast.error(message);
+      console.error('Error resolving game:', error);
+      const errorMessage = error.reason || error.message || 'Transaction failed';
+      toast.error(`Failed to resolve game: ${errorMessage}`);
     } finally {
       setIsLoading(false);
     }
   };
 
   return {
-    isLoading,
     currentGame,
     playerStats,
     previousBets,
     requestDetails,
     gameState,
+    isLoading,
     playDice,
     resolveGame,
-    setHistorySize,
     refreshGameData: fetchGameData
   };
 } 

@@ -172,9 +172,9 @@ export function DiceGame() {
 
     try {
       setIsPlacingBet(true);
-      const amount = ethers.parseEther(betAmount);
       
       // Validate bet amount
+      const amount = ethers.parseEther(betAmount);
       if (amount < GAME_CONFIG.MIN_BET || amount > GAME_CONFIG.MAX_BET) {
         toast.error('Invalid bet amount');
         return;
@@ -184,33 +184,45 @@ export function DiceGame() {
       const approved = await checkAndApprove(amount);
       if (!approved) return;
 
-      await playDice(selectedNumber, amount);
+      await playDice(selectedNumber, betAmount);
       
       setSelectedNumber(null);
       setBetAmount('');
       
     } catch (error) {
-      const { message } = handleError(error);
-      toast.error(message);
+      console.error('Error placing bet:', error);
+      const errorMessage = error.reason || error.message || 'Transaction failed';
+      toast.error(`Failed to place bet: ${errorMessage}`);
     } finally {
       setIsPlacingBet(false);
     }
   };
 
+  const isGameLoading = isLoading || isPlacingBet || isApproving;
+
   const canPlaceBet = !currentGame?.isActive && 
-                      selectedNumber >= GAME_CONFIG.MIN_NUMBER && 
-                      selectedNumber <= GAME_CONFIG.MAX_NUMBER &&
-                      betAmount && 
-                      !isPlacingBet && 
-                      !isApproving;
+                     selectedNumber >= GAME_CONFIG.MIN_NUMBER && 
+                     selectedNumber <= GAME_CONFIG.MAX_NUMBER &&
+                     betAmount && 
+                     !isGameLoading;
 
   const canResolveGame = currentGame?.isActive && 
-                        gameState === GAME_STATES.READY_TO_RESOLVE;
+                        gameState === GAME_STATES.READY_TO_RESOLVE &&
+                        !isGameLoading;
 
   // Calculate potential winnings
   const potentialWinnings = betAmount ? 
     (parseFloat(betAmount) * GAME_CONFIG.PAYOUT_MULTIPLIER).toFixed(2) : 
     "0.00";
+
+  if (!address) {
+    return (
+      <GameCard>
+        <h2>Connect Wallet</h2>
+        <p>Please connect your wallet to play the game.</p>
+      </GameCard>
+    );
+  }
 
   return (
     <GameContainer>
@@ -279,7 +291,7 @@ export function DiceGame() {
             <Button
               $variant="primary"
               $fullWidth
-              onClick={() => toast.info('Please connect your wallet to play')}
+              to="/connect"
             >
               Connect Wallet to Play
             </Button>

@@ -178,7 +178,7 @@ export function AdminPanel() {
         <h2>Contract Statistics</h2>
         <StatDisplay>
           <span>Total Supply</span>
-          <span>{contractStats.totalSupply || '0'} GAMEX</span>
+          <span>{contractStats.totalSupply || '0'} DICE</span>
         </StatDisplay>
         <StatDisplay>
           <span>Total Games Played</span>
@@ -186,7 +186,7 @@ export function AdminPanel() {
         </StatDisplay>
         <StatDisplay>
           <span>Total Volume</span>
-          <span>{contractStats.totalVolume || '0'} GAMEX</span>
+          <span>{contractStats.totalVolume || '0'} DICE</span>
         </StatDisplay>
       </AdminCard>
     </AdminContainer>

@@ -27,6 +27,7 @@ const Card = styled(motion.div)`
 
   &:hover {
     transform: translateY(-2px);
+    border-color: ${({ theme }) => theme.primary};
 
     &::before {
       opacity: 1;
