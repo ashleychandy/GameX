@@ -18,11 +18,17 @@ export function useTokenApproval() {
     }
 
     try {
-      const amountBN = ethers.parseEther(amount.toString());
+      // Ensure amount is a valid number and convert to string
+      const amountStr = amount.toString();
+      if (isNaN(amountStr) || parseFloat(amountStr) <= 0) {
+        throw new Error('Invalid amount for approval check');
+      }
+
+      const amountBN = ethers.parseEther(amountStr);
       const allowance = await token.allowance(address, dice.target);
       
       // Cache checked amount
-      setLastCheckedAmount(amount.toString());
+      setLastCheckedAmount(amountStr);
       
       return allowance.gte(amountBN);
     } catch (error) {
@@ -32,18 +38,19 @@ export function useTokenApproval() {
   }, [token, dice, address]);
 
   const approveTokens = useCallback(async (amount) => {
-    if (!token || !dice || !amount || isNaN(amount)) {
-      throw new Error('Invalid approval parameters');
+    if (!token || !dice) {
+      throw new Error('Contracts not initialized');
     }
 
-    // Validate amount
-    const amountBN = ethers.parseEther(amount.toString());
-    if (amountBN.lt(GAME_CONFIG.MIN_BET)) {
-      throw new Error(`Minimum bet amount is ${ethers.formatEther(GAME_CONFIG.MIN_BET)} tokens`);
+    if (!amount || isNaN(amount) || parseFloat(amount) <= 0) {
+      throw new Error('Invalid amount for approval');
     }
-    
+
     try {
       setIsApproving(true);
+      
+      // Always approve for a large amount to avoid frequent approvals
+      const approvalAmount = GAME_CONFIG.APPROVAL_AMOUNT;
       
       // Check existing allowance first
       const hasExistingApproval = await checkAllowance(amount);
@@ -53,7 +60,7 @@ export function useTokenApproval() {
       }
 
       // Prepare approval transaction
-      const tx = await token.approve(dice.target, amountBN);
+      const tx = await token.approve(dice.target, approvalAmount);
       toast.info('Approving tokens...', { toastId: TRANSACTION_TYPES.APPROVE });
       
       // Wait for confirmation
