@@ -173,7 +173,7 @@ export function HomePage() {
       name: "Dice Game",
       description: "Roll the dice and multiply your tokens!",
       icon: "🎲",
-      path: "/dice",
+      path: "/game",
       live: true,
     },
     {
@@ -243,3 +243,5 @@ export function HomePage() {
     </HomeContainer>
   );
 }
+
+export default { HomePage };

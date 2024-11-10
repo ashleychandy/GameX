@@ -1,97 +1,32 @@
 import { toast } from 'react-toastify';
 import { ERROR_CODES } from './constants';
 
-export const handleError = (error) => {
+export const handleError = (error, fallback = 'An unexpected error occurred') => {
   console.error('Error:', error);
 
-  // Handle MetaMask/wallet errors
-  if (error.code === 4001) {
-    return {
-      type: 'USER_REJECTED',
-      message: 'Transaction rejected by user',
-      severity: 'warning'
-    };
+  if (error?.code === 'ACTION_REJECTED') {
+    return 'Transaction was rejected by user';
   }
 
-  // Handle chain/network errors
-  if (error.code === 4902) {
-    return {
-      type: 'NETWORK_ERROR',
-      message: 'Please add and switch to the correct network',
-      severity: 'warning'
-    };
+  if (error?.message) {
+    // Clean up common Web3 error messages
+    let message = error.message
+      .replace('MetaMask Tx Signature: ', '')
+      .replace('Error: ', '');
+      
+    // Limit length for display
+    return message.length > 150 
+      ? message.substring(0, 150) + '...'
+      : message;
   }
 
-  // Handle wallet connection errors
-  if (error.code === -32002) {
-    return {
-      type: 'WALLET_CONNECTION',
-      message: 'Please unlock your wallet and try again',
-      severity: 'warning'
-    };
-  }
-
-  // Handle JSON-RPC errors
-  if (error.code && error.code <= -32000 && error.code >= -32099) {
-    return {
-      type: 'RPC_ERROR',
-      message: error.message || 'RPC Error occurred',
-      severity: 'error',
-      retryable: true
-    };
-  }
-
-  // Handle network errors
-  if (error.message?.includes('network') || error.message?.includes('connection')) {
-    return {
-      type: 'NETWORK_ERROR',
-      message: 'Network error. Please check your connection',
-      severity: 'error',
-      retryable: true
-    };
-  }
-
-  // Handle contract errors with better formatting
-  if (error.reason) {
-    return {
-      type: 'CONTRACT_ERROR',
-      message: formatContractError(error.reason),
-      severity: 'error',
-      data: error.data
-    };
-  }
-
-  // Handle MetaMask provider errors
-  if (error.message?.includes('MetaMask')) {
-    return {
-      type: 'WALLET_ERROR',
-      message: error.message.replace('MetaMask ', ''),
-      severity: 'error'
-    };
-  }
-
-  // Handle other errors
-  return {
-    type: 'UNKNOWN_ERROR',
-    message: error.message || 'An unknown error occurred',
-    severity: 'error',
-    original: error
-  };
+  return fallback;
 };
 
-// Add helper function to format contract errors
-export const formatContractError = (error) => {
-  // Remove "execution reverted: " prefix if present
-  const message = error.replace(/^execution reverted: /i, '');
-  
-  // Capitalize first letter and add period if missing
-  return message.charAt(0).toUpperCase() + 
-         message.slice(1) + 
-         (message.endsWith('.') ? '' : '.');
-};
-
-export const isUserRejectionError = (error) => {
-  return error.code === ERROR_CODES.USER_REJECTED;
+export const isUserRejection = (error) => {
+  return error?.code === 'ACTION_REJECTED' || 
+         error?.code === 4001 ||
+         error?.message?.includes('User denied');
 };
 
 export const isNetworkError = (error) => {

@@ -1,67 +1,44 @@
-import { useEffect, useCallback } from 'react';
+import { useEffect } from 'react';
+import { ethers } from 'ethers';
 import { toast } from 'react-toastify';
 import { useWallet } from '../contexts/WalletContext';
-import { formatAmount } from '../utils/helpers';
+import { EVENTS } from '../utils/constants';
 
 export function useGameEvents(onGameUpdate) {
-  const { diceContract, address } = useWallet();
-
-  const handleGameStarted = useCallback((player, number, amount, timestamp, event) => {
-    if (player.toLowerCase() === address?.toLowerCase()) {
-      toast.info(
-        `Bet placed: ${number} for ${formatAmount(amount)} GAMEX`,
-        { toastId: event.transactionHash }
-      );
-      onGameUpdate?.();
-    }
-  }, [address, onGameUpdate]);
-
-  const handleGameCompleted = useCallback((player, number, result, amount, payout, timestamp, event) => {
-    if (player.toLowerCase() === address?.toLowerCase()) {
-      const won = payout > 0;
-      toast[won ? 'success' : 'info'](
-        won 
-          ? `You won ${formatAmount(payout)} GAMEX!` 
-          : 'Better luck next time!',
-        { toastId: event.transactionHash }
-      );
-      onGameUpdate?.();
-    }
-  }, [address, onGameUpdate]);
-
-  const handleRandomWordsFulfilled = useCallback((requestId, event) => {
-    toast.info('Random number received!', { 
-      toastId: event.transactionHash 
-    });
-    onGameUpdate?.();
-  }, [onGameUpdate]);
+  const { contract, address } = useWallet();
 
   useEffect(() => {
-    if (!diceContract || !address) return;
+    if (!contract || !address) return;
 
-    // Event filters
-    const gameStartedFilter = diceContract.filters.GameStarted(address);
-    const gameCompletedFilter = diceContract.filters.GameCompleted(address);
-    const randomWordsFilter = diceContract.filters.RandomWordsFulfilled();
+    const gameStartedFilter = contract.filters[EVENTS.GAME_STARTED](address);
+    const gameCompletedFilter = contract.filters[EVENTS.GAME_COMPLETED](address);
+    const randomWordsFilter = contract.filters[EVENTS.RANDOM_WORDS_FULFILLED]();
 
-    // Subscribe to events
-    diceContract.on(gameStartedFilter, handleGameStarted);
-    diceContract.on(gameCompletedFilter, handleGameCompleted);
-    diceContract.on(randomWordsFilter, handleRandomWordsFulfilled);
-
-    // Complete cleanup
-    return () => {
-      if (diceContract) {
-        diceContract.off(gameStartedFilter, handleGameStarted);
-        diceContract.off(gameCompletedFilter, handleGameCompleted);
-        diceContract.off(randomWordsFilter, handleRandomWordsFulfilled);
+    const handleGameStarted = (player, number, amount, timestamp) => {
+      if (player.toLowerCase() === address.toLowerCase()) {
+        toast.info(`Bet placed: ${number} for ${ethers.formatEther(amount)} DICE`);
+        onGameUpdate?.();
       }
     };
-  }, [
-    diceContract,
-    address,
-    handleGameStarted,
-    handleGameCompleted,
-    handleRandomWordsFulfilled
-  ]);
+
+    const handleGameCompleted = (player, chosenNumber, result, amount, payout) => {
+      if (player.toLowerCase() === address.toLowerCase()) {
+        const won = payout > 0;
+        toast[won ? 'success' : 'info'](
+          won ? `You won ${ethers.formatEther(payout)} DICE!` : 'Better luck next time!'
+        );
+        onGameUpdate?.();
+      }
+    };
+
+    contract.on(gameStartedFilter, handleGameStarted);
+    contract.on(gameCompletedFilter, handleGameCompleted);
+    contract.on(randomWordsFilter, onGameUpdate);
+
+    return () => {
+      contract.off(gameStartedFilter, handleGameStarted);
+      contract.off(gameCompletedFilter, handleGameCompleted);
+      contract.off(randomWordsFilter, onGameUpdate);
+    };
+  }, [contract, address, onGameUpdate]);
 } 

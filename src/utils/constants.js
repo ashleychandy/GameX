@@ -6,96 +6,113 @@ const getEnvVar = (name, fallback = '') => {
   return value ? value.trim() : fallback;
 };
 
-// Chain IDs
-export const SUPPORTED_CHAIN_ID = 11155111; // Sepolia Testnet
-export const FORMATTED_CHAIN_ID = `0x${Number(SUPPORTED_CHAIN_ID).toString(16)}`;
+// Contract Addresses
+export const CONTRACTS = {
+  DICE: getEnvVar('VITE_DICE_GAME_ADDRESS'),
+  TOKEN: getEnvVar('VITE_TOKEN_ADDRESS')
+};
 
-// Network configuration
-export const SUPPORTED_NETWORKS = {
-  SEPOLIA: {
-    chainId: FORMATTED_CHAIN_ID,
+// Chain Configuration
+export const CHAIN_CONFIG = {
+  CHAIN_ID: parseInt(getEnvVar('VITE_CHAIN_ID', '11155111')),
+  RPC_URL: getEnvVar('SEPOLIA_TESTNET_RPC'),
+  EXPLORER_URL: getEnvVar('VITE_EXPLORER_URL')
+};
+
+// Chainlink VRF Configuration
+export const VRF_CONFIG = {
+  COORDINATOR: getEnvVar('CHAIN_LINK_VRF_COORDINATOR'),
+  KEY_HASH: getEnvVar('CHAIN_LINK_KEY_HASH'),
+  SUBSCRIPTION_ID: getEnvVar('CHAIN_LINK_SUBSCRIPTION_ID'),
+  CALLBACK_GAS_LIMIT: parseInt(getEnvVar('CHAIN_LINK_CALLBACKGASLIMIT', '200000')),
+  REQUEST_CONFIRMATIONS: parseInt(getEnvVar('CHAIN_LINK_REQUESTCONFIRMATIONS', '3')),
+  NUM_WORDS: parseInt(getEnvVar('CHAIN_LINK_NUMWORDS', '1'))
+};
+
+// Game States - matching contract enum
+export const GAME_STATES = {
+  NO_ACTIVE_GAME: 0,
+  WAITING_FOR_RANDOM: 1,
+  READY_TO_RESOLVE: 2
+};
+
+// Game Configuration
+export const GAME_CONFIG = {
+  MIN_NUMBER: 1,
+  MAX_NUMBER: 6,
+  MIN_BET: ethers.parseEther('1'),    // 1 TOKEN
+  MAX_BET: ethers.parseEther('1000'), // 1000 TOKEN
+  PAYOUT_MULTIPLIER: 6
+};
+
+// Error Messages
+export const ERROR_MESSAGES = {
+  INVALID_BET_AMOUNT: 'Bet amount must be between 1 and 1000 DICE',
+  INVALID_NUMBER: 'Chosen number must be between 1 and 6',
+  GAME_IN_PROGRESS: 'Player has an active game',
+  INSUFFICIENT_BALANCE: 'Insufficient token balance',
+  INSUFFICIENT_ALLOWANCE: 'Insufficient token allowance',
+  NO_ACTIVE_GAME: 'No active game to resolve',
+  NOT_READY_TO_RESOLVE: 'Game is not ready to be resolved'
+};
+
+// Contract Events
+export const EVENTS = {
+  GAME_STARTED: 'GameStarted',
+  GAME_COMPLETED: 'GameCompleted',
+  RANDOM_WORDS_FULFILLED: 'RandomWordsFulfilled'
+};
+
+// Time Constants
+export const TIME = {
+  POLL_INTERVAL: 10000      // Poll for game updates every 10 seconds
+};
+
+// Error Codes
+export const ERROR_CODES = {
+  USER_REJECTED: 4001,      // MetaMask Tx Signature: User denied transaction signature
+  NETWORK_ERROR: -32603,    // Internal JSON-RPC error
+  CHAIN_MISMATCH: 4902,     // Chain/network mismatch
+  TIMEOUT: -32008,          // Request timeout
+  INSUFFICIENT_FUNDS: -32000, // Insufficient funds for gas * price + value
+  NONCE_TOO_LOW: -32003,    // Nonce too low
+  CONTRACT_ERROR: -32016     // Contract execution error
+};
+
+// Network Configuration
+export const SUPPORTED_CHAIN_ID = 11155111; // Sepolia testnet
+
+// Network Configurations
+export const NETWORKS = {
+  [SUPPORTED_CHAIN_ID]: {  // Using SUPPORTED_CHAIN_ID as key
+    chainId: SUPPORTED_CHAIN_ID,
     name: 'Sepolia Test Network',
     currency: {
       name: 'Sepolia ETH',
       symbol: 'ETH',
       decimals: 18
     },
-    rpcUrls: [getEnvVar('SEPOLIA_TESTNET_RPC', 'https://rpc.sepolia.org')],
-    blockExplorerUrls: [getEnvVar('VITE_EXPLORER_URL', 'https://sepolia.etherscan.io')]
+    rpcUrls: ['https://rpc.sepolia.org'],
+    blockExplorerUrls: ['https://sepolia.etherscan.io']
+  },
+  MAINNET: {
+    chainId: 1,
+    name: 'Ethereum Mainnet',
+    currency: {
+      name: 'Ether',
+      symbol: 'ETH',
+      decimals: 18
+    },
+    rpcUrls: ['https://mainnet.infura.io/v3/YOUR-PROJECT-ID'],
+    blockExplorerUrls: ['https://etherscan.io']
   }
 };
 
-export const DEFAULT_NETWORK = SUPPORTED_NETWORKS.SEPOLIA;
+// Default Network
+export const DEFAULT_NETWORK = NETWORKS[SUPPORTED_CHAIN_ID];
 
-// Chain Configuration for wallet
-export const CHAIN_CONFIG = {
-  [SUPPORTED_CHAIN_ID]: {
-    chainId: FORMATTED_CHAIN_ID,
-    chainName: SUPPORTED_NETWORKS.SEPOLIA.name,
-    nativeCurrency: SUPPORTED_NETWORKS.SEPOLIA.currency,
-    rpcUrls: SUPPORTED_NETWORKS.SEPOLIA.rpcUrls,
-    blockExplorerUrls: SUPPORTED_NETWORKS.SEPOLIA.blockExplorerUrls
-  }
+// Chain IDs
+export const CHAIN_IDS = {
+  SEPOLIA: SUPPORTED_CHAIN_ID,
+  MAINNET: 1
 };
-
-// Contract Addresses
-export const DICE_ADDRESS = getEnvVar('VITE_DICE_GAME_ADDRESS');
-export const TOKEN_ADDRESS = getEnvVar('VITE_TOKEN_ADDRESS');
-export const ROULETTE_ADDRESS = getEnvVar('VITE_ROULETTE_ADDRESS');
-
-// Contract Roles
-export const ROLES = {
-  DEFAULT_ADMIN_ROLE: '0x0000000000000000000000000000000000000000000000000000000000000000',
-  MINTER_ROLE: '0x9f2df0fed2c77648de5860a4cc508cd0818c85b8b8a1ab4ceeef8d981c8956a6',
-  BURNER_ROLE: '0x3c11d16cbaffd01df69ce1c404f6340ee057498f5f00246190ea54220576a848'
-};
-
-// Game Configuration
-export const GAME_CONFIG = {
-  MIN_BET: '1',
-  MAX_BET: '1000',
-  PAYOUT_MULTIPLIER: '6',
-  MAX_NUMBER: '6'
-};
-
-// Game States
-export const GAME_STATES = {
-  PENDING: 0,
-  WAITING_FOR_RANDOM: 1,
-  READY_TO_RESOLVE: 2,
-  COMPLETED: 3
-};
-
-// Storage Keys
-export const STORAGE_KEYS = {
-  GAME_HISTORY: 'game_history',
-  USER_SETTINGS: 'user_settings'
-};
-
-// Error Messages
-export const ERROR_MESSAGES = {
-  NO_WALLET: 'Please connect your wallet',
-  NO_CONTRACT: 'Contract not initialized',
-  INSUFFICIENT_BALANCE: 'Insufficient balance',
-  INVALID_AMOUNT: 'Invalid bet amount',
-  NETWORK_ERROR: 'Network error occurred',
-  TRANSACTION_FAILED: 'Transaction failed'
-};
-
-// Event Names
-export const EVENTS = {
-  GAME_STARTED: 'GameStarted',
-  GAME_COMPLETED: 'GameCompleted',
-  RANDOM_REQUESTED: 'RandomWordsRequested',
-  RANDOM_FULFILLED: 'RandomWordsFulfilled'
-};
-
-// Token Configuration
-export const TOKEN_CONFIG = {
-  NAME: 'GAMEX Token',
-  SYMBOL: 'GAMEX',
-  DECIMALS: 18
-};
-
-// Explorer URL
-export const EXPLORER_URL = getEnvVar('VITE_EXPLORER_URL', 'https://sepolia.etherscan.io');

@@ -1,148 +1,178 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { ethers } from 'ethers';
-import { useWallet } from '../contexts/WalletContext';
-import { useContract } from './useContract';
-import { GAME_STATES } from '../constants';
 import { toast } from 'react-toastify';
+import { useContract } from './useContract';
+import { useWallet } from '../contexts/WalletContext';
 import { handleError } from '../utils/helpers';
+
+export const GAME_STATES = {
+  PENDING: 'PENDING',
+  STARTED: 'STARTED',
+  COMPLETED_WIN: 'COMPLETED_WIN',
+  COMPLETED_LOSS: 'COMPLETED_LOSS',
+  CANCELLED: 'CANCELLED'
+};
 
 export function useGame() {
   const [isLoading, setIsLoading] = useState(false);
-  const [gameState, setGameState] = useState(GAME_STATES.PENDING);
   const [currentGame, setCurrentGame] = useState(null);
-  const [gameStats, setGameStats] = useState(null);
+  const [playerStats, setPlayerStats] = useState(null);
+  const [previousBets, setPreviousBets] = useState([]);
+  const [requestDetails, setRequestDetails] = useState(null);
+  const [gameState, setGameState] = useState(GAME_STATES.PENDING);
 
+  const { contract } = useContract('Dice');
   const { address } = useWallet();
-  const dice = useContract('dice');
 
-  const fetchGameState = useCallback(async () => {
-    if (!dice || !address) {
-      setGameState(GAME_STATES.PENDING);
-      setCurrentGame(null);
-      setGameStats(null);
-      return;
-    }
+  // Fetch all game data
+  const fetchGameData = useCallback(async () => {
+    if (!contract || !address) return;
 
     try {
-      setIsLoading(true);
-      
-      const [currentGameData, statsData] = await Promise.all([
-        dice.getCurrentGame(address).catch(error => {
-          console.error('Error fetching current game:', error);
-          return {
-            isActive: false,
-            chosenNumber: 0,
-            result: 0,
-            amount: 0,
-            timestamp: 0,
-            status: 0
-          };
-        }),
-        dice.getPlayerStats(address).catch(error => {
-          console.error('Error fetching player stats:', error);
-          return {
-            winRate: 0,
-            averageBet: 0,
-            totalGamesWon: 0,
-            totalGamesLost: 0
-          };
-        })
+      const [
+        userData,
+        stats,
+        previousBetsData,
+        requestInfo,
+        canStart
+      ] = await Promise.all([
+        contract.getUserData(address),
+        contract.getPlayerStats(address),
+        contract.getPreviousBets(address),
+        contract.getCurrentRequestDetails(address),
+        contract.canStartNewGame(address)
       ]);
 
-      if (currentGameData) {
-        setCurrentGame({
-          isActive: currentGameData.isActive,
-          chosenNumber: currentGameData.chosenNumber.toString(),
-          result: currentGameData.result.toString(),
-          amount: ethers.formatEther(currentGameData.amount || 0),
-          timestamp: currentGameData.timestamp.toString(),
-          status: currentGameData.status
-        });
-      }
+      // Update current game state
+      setCurrentGame({
+        isActive: userData.currentGame.isActive,
+        chosenNumber: userData.currentGame.chosenNumber.toNumber(),
+        result: userData.currentGame.result.toNumber(),
+        amount: ethers.formatEther(userData.currentGame.amount),
+        timestamp: userData.currentGame.timestamp.toNumber(),
+        payout: ethers.formatEther(userData.currentGame.payout),
+        status: GAME_STATES[userData.currentGame.status]
+      });
 
-      if (statsData) {
-        setGameStats({
-          winRate: statsData.winRate.toString(),
-          averageBet: ethers.formatEther(statsData.averageBet || 0),
-          totalGamesWon: statsData.totalGamesWon.toString(),
-          totalGamesLost: statsData.totalGamesLost.toString()
-        });
-      }
+      // Update player stats
+      setPlayerStats({
+        winRate: stats.winRate.toNumber() / 100, // Convert basis points to percentage
+        averageBet: ethers.formatEther(stats.averageBet),
+        totalGamesWon: stats.totalGamesWon.toNumber(),
+        totalGamesLost: stats.totalGamesLost.toNumber(),
+        totalGames: userData.totalGames.toNumber(),
+        totalBets: ethers.formatEther(userData.totalBets),
+        totalWinnings: ethers.formatEther(userData.totalWinnings),
+        totalLosses: ethers.formatEther(userData.totalLosses),
+        lastPlayed: userData.lastPlayed.toNumber()
+      });
 
-      // Update game state based on current game status
-      if (!currentGameData?.isActive) {
+      // Update previous bets
+      setPreviousBets(previousBetsData.map(bet => ({
+        chosenNumber: bet.chosenNumber.toNumber(),
+        rolledNumber: bet.rolledNumber.toNumber(),
+        amount: ethers.formatEther(bet.amount),
+        timestamp: bet.timestamp.toNumber()
+      })));
+
+      // Update request details
+      setRequestDetails({
+        requestId: requestInfo.requestId.toNumber(),
+        requestFulfilled: requestInfo.requestFulfilled,
+        requestActive: requestInfo.requestActive
+      });
+
+      // Determine game state
+      if (!userData.currentGame.isActive) {
         setGameState(GAME_STATES.PENDING);
-      } else if (currentGameData?.status === 1) {
-        setGameState(GAME_STATES.WAITING_FOR_RANDOM);
-      } else if (currentGameData?.status === 2) {
-        setGameState(GAME_STATES.READY_TO_RESOLVE);
-      } else if (currentGameData?.status === 3) {
-        setGameState(GAME_STATES.COMPLETED);
+      } else if (requestInfo.requestFulfilled) {
+        setGameState('READY_TO_RESOLVE');
+      } else {
+        setGameState(GAME_STATES.STARTED);
       }
 
     } catch (error) {
-      const { message } = handleError(error);
-      console.error('Error fetching game state:', message);
-      if (!error.message.includes('execution reverted')) {
-        toast.error(message);
-      }
-    } finally {
-      setIsLoading(false);
+      console.error('Error fetching game data:', error);
+      toast.error('Failed to fetch game data');
     }
-  }, [dice, address]);
+  }, [contract, address]);
 
-  const playDice = useCallback(async (number, amount) => {
-    if (!dice) throw new Error('Contract not initialized');
+  // Auto-refresh game data
+  useEffect(() => {
+    if (contract && address) {
+      fetchGameData();
+      
+      // Set up polling for game updates
+      const interval = setInterval(fetchGameData, 5000);
+      return () => clearInterval(interval);
+    }
+  }, [contract, address, fetchGameData]);
+
+  // Play dice function
+  const playDice = async (chosenNumber, amount) => {
+    if (!contract || !address) return;
     
+    setIsLoading(true);
     try {
-      setIsLoading(true);
-      const tx = await dice.playDice(number, { value: amount });
-      toast.info('Transaction submitted...');
+      const amountInWei = ethers.parseEther(amount.toString());
+      const tx = await contract.playDice(chosenNumber, amountInWei);
       await tx.wait();
       toast.success('Bet placed successfully!');
-      await fetchGameState();
+      await fetchGameData();
     } catch (error) {
       const { message } = handleError(error);
       toast.error(message);
-      throw error;
     } finally {
       setIsLoading(false);
     }
-  }, [dice, fetchGameState]);
+  };
 
-  const resolveGame = useCallback(async () => {
-    if (!dice) throw new Error('Contract not initialized');
+  // Resolve game function
+  const resolveGame = async () => {
+    if (!contract || !address) return;
     
+    setIsLoading(true);
     try {
-      setIsLoading(true);
-      const tx = await dice.resolveGame();
-      toast.info('Resolving game...');
+      const tx = await contract.resolveGame();
       await tx.wait();
       toast.success('Game resolved successfully!');
-      await fetchGameState();
+      await fetchGameData();
     } catch (error) {
       const { message } = handleError(error);
       toast.error(message);
-      throw error;
     } finally {
       setIsLoading(false);
     }
-  }, [dice, fetchGameState]);
+  };
 
-  // Reduce polling frequency to avoid too many errors
-  useEffect(() => {
-    fetchGameState();
-    const interval = setInterval(fetchGameState, 30000); // Changed from 10s to 30s
-    return () => clearInterval(interval);
-  }, [fetchGameState]);
+  // Set history size
+  const setHistorySize = async (newSize) => {
+    if (!contract || !address) return;
+    
+    setIsLoading(true);
+    try {
+      const tx = await contract.setHistorySize(newSize);
+      await tx.wait();
+      toast.success('History size updated successfully!');
+      await fetchGameData();
+    } catch (error) {
+      const { message } = handleError(error);
+      toast.error(message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return {
     isLoading,
-    gameState,
     currentGame,
-    gameStats,
+    playerStats,
+    previousBets,
+    requestDetails,
+    gameState,
     playDice,
     resolveGame,
-    fetchGameState
+    setHistorySize,
+    refreshGameData: fetchGameData
   };
 } 

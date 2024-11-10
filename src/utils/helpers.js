@@ -52,38 +52,6 @@ export function formatGameStatus(status) {
   return status.replace(/_/g, ' ').toLowerCase();
 }
 
-// Handle errors
-export function handleError(error) {
-  console.error('Error:', error);
-  
-  if (error.code === 'ACTION_REJECTED') {
-    return { message: 'Transaction rejected by user' };
-  }
-  
-  if (error.code === 'INSUFFICIENT_FUNDS') {
-    return { message: 'Insufficient funds for transaction' };
-  }
-
-  if (error.code === 'CALL_EXCEPTION') {
-    return { message: 'Contract call failed' };
-  }
-
-  if (error.data?.message) {
-    return { message: error.data.message };
-  }
-
-  if (error.message) {
-    // Clean up common web3 error messages
-    let message = error.message
-      .replace('MetaMask Tx Signature: ', '')
-      .replace('execution reverted: ', '')
-      .replace('missing revert data', 'Contract call failed');
-    return { message };
-  }
-
-  return { message: 'An unexpected error occurred' };
-}
-
 export function getGameState(game, hasPendingRequest) {
   if (!game?.isActive) return 'PENDING';
   if (hasPendingRequest) return 'WAITING_FOR_RANDOM';

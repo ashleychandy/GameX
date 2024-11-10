@@ -1,10 +1,9 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { ethers } from 'ethers';
 import { toast } from 'react-toastify';
-import { DICE_ADDRESS, TOKEN_ADDRESS, CHAIN_CONFIG, SUPPORTED_CHAIN_ID } from '../utils/constants';
-import { handleError } from '../utils/helpers';
-import DiceABI from '../abi/Dice.json';
-import TokenABI from '../abi/Token.json';
+import { handleError } from '../utils/errorHandling';
+import { contracts } from '../config';
+import { NETWORKS, SUPPORTED_CHAIN_ID } from '../utils/constants';
 
 const WalletContext = createContext();
 
@@ -76,9 +75,18 @@ export function WalletProvider({ children }) {
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
       
-      // Initialize contracts
-      const dice = new ethers.Contract(DICE_ADDRESS, DiceABI.abi, signer);
-      const token = new ethers.Contract(TOKEN_ADDRESS, TokenABI.abi, signer);
+      // Initialize contracts with correct property names
+      const dice = new ethers.Contract(
+        contracts.dice.address,  // Changed from DICE_ADDRESS
+        contracts.dice.abi,      // Changed from DICE_ABI
+        signer
+      );
+      
+      const token = new ethers.Contract(
+        contracts.token.address, // Changed from TOKEN_ADDRESS
+        contracts.token.abi,     // Changed from TOKEN_ABI
+        signer
+      );
 
       setIsConnected(true);
       setAddress(address);
@@ -115,13 +123,13 @@ export function WalletProvider({ children }) {
       });
     } catch (error) {
       if (error.code === 4902) {
-        const network = CHAIN_CONFIG[SUPPORTED_CHAIN_ID];
+        const network = NETWORKS[SUPPORTED_CHAIN_ID];
         await window.ethereum.request({
           method: 'wallet_addEthereumChain',
           params: [{
-            chainId: network.chainId,
-            chainName: network.chainName,
-            nativeCurrency: network.nativeCurrency,
+            chainId: `0x${Number(SUPPORTED_CHAIN_ID).toString(16)}`,
+            chainName: network.name,
+            nativeCurrency: network.currency,
             rpcUrls: network.rpcUrls,
             blockExplorerUrls: network.blockExplorerUrls
           }]
@@ -162,11 +170,11 @@ export function WalletProvider({ children }) {
     </WalletContext.Provider>
   );
 }
-
-export const useWallet = () => {
+export function useWallet() {
   const context = useContext(WalletContext);
   if (!context) {
     throw new Error('useWallet must be used within a WalletProvider');
   }
   return context;
-};
+}
+

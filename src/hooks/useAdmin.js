@@ -1,24 +1,32 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { ethers } from 'ethers';
 import { useWallet } from '../contexts/WalletContext';
 import { ROLES } from '../utils/constants';
-import { handleError } from '../utils/helpers';
+import { handleError } from '../utils/errorHandling';
 import { toast } from 'react-toastify';
 
 export function useAdmin() {
   const { tokenContract: token, diceContract: dice, address } = useWallet();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [isAdmin, setIsAdmin] = useState(false);
 
-  const checkIsAdmin = useCallback(async () => {
-    if (!token || !address) return false;
-    try {
-      const hasAdminRole = await token.hasRole(ROLES.DEFAULT_ADMIN_ROLE, address);
-      return hasAdminRole;
-    } catch (error) {
-      console.error('Error checking admin role:', error);
-      return false;
-    }
+  useEffect(() => {
+    const checkAdmin = async () => {
+      if (!token || !address) {
+        setIsAdmin(false);
+        return;
+      }
+      try {
+        const hasAdminRole = await token.hasRole(ROLES.DEFAULT_ADMIN_ROLE, address);
+        setIsAdmin(hasAdminRole);
+      } catch (err) {
+        console.error('Error checking admin status:', err);
+        setIsAdmin(false);
+      }
+    };
+
+    checkAdmin();
   }, [token, address]);
 
   const mintTokens = useCallback(async (to, amount) => {
@@ -120,7 +128,8 @@ export function useAdmin() {
 
   return {
     isLoading,
-    checkIsAdmin,
+    isAdmin,
+    error,
     mintTokens,
     setHouseEdge,
     withdrawFunds,

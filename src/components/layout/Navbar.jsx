@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import styled from 'styled-components';
 import { motion } from 'framer-motion';
 import { Link, useLocation } from 'react-router-dom';
@@ -6,6 +6,7 @@ import { Button } from '../common/Button';
 import { useWallet } from '../../contexts/WalletContext';
 import { formatAddress, formatAmount } from '../../utils/helpers';
 import { toast } from 'react-toastify';
+import { handleError } from '../../utils/errorHandling';
 
 const Nav = styled.nav`
   background: ${({ theme }) => theme.surface};
@@ -13,7 +14,7 @@ const Nav = styled.nav`
   box-shadow: ${({ theme }) => theme.shadow.sm};
 `;
 
-const NavContainer = styled.div`
+const NavContainer = styled(motion.create("nav"))`
   max-width: 1200px;
   margin: 0 auto;
   display: flex;
@@ -69,10 +70,23 @@ const Address = styled(motion.div)`
 export function Navbar() {
   const location = useLocation();
   const { isConnected, address, balance, connectWallet, disconnectWallet } = useWallet();
+  const [isConnecting, setIsConnecting] = useState(false);
 
   const handleAddressClick = () => {
     navigator.clipboard.writeText(address);
     toast.success('Address copied to clipboard!');
+  };
+
+  const handleConnect = async () => {
+    try {
+      setIsConnecting(true);
+      await connectWallet();
+    } catch (error) {
+      const { message } = handleError(error);
+      toast.error(message);
+    } finally {
+      setIsConnecting(false);
+    }
   };
 
   return (
@@ -110,7 +124,7 @@ export function Navbar() {
             <>
               <Balance>
                 <span>Balance:</span>
-                {formatAmount(balance)} GAMEX
+                {formatAmount(balance)} DICE
               </Balance>
               <Address
                 onClick={handleAddressClick}
@@ -122,8 +136,7 @@ export function Navbar() {
               <Button
                 $variant="outline"
                 onClick={disconnectWallet}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
+                disabled={isConnecting}
               >
                 Disconnect
               </Button>
@@ -131,11 +144,10 @@ export function Navbar() {
           ) : (
             <Button
               $variant="primary"
-              onClick={connectWallet}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
+              onClick={handleConnect}
+              disabled={isConnecting}
             >
-              Connect Wallet
+              {isConnecting ? 'Connecting...' : 'Connect Wallet'}
             </Button>
           )}
         </WalletInfo>

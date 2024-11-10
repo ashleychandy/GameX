@@ -1,8 +1,22 @@
 import React from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { useWallet } from '../../contexts/WalletContext';
+import { useAdmin } from '../../hooks/useAdmin';
+import { getRouteMetadata, ROUTES } from '../../routes';
 
 export function ProtectedRoute({ children }) {
   const { isConnected } = useWallet();
-  return isConnected ? children : <Navigate to="/" />;
+  const { isAdmin } = useAdmin();
+  const location = useLocation();
+  const { requiresAuth, requireAdmin } = getRouteMetadata(location.pathname);
+
+  if (!isConnected && requiresAuth) {
+    return <Navigate to={ROUTES.HOME} replace />;
+  }
+
+  if (requireAdmin && !isAdmin) {
+    return <Navigate to={ROUTES.HOME} replace />;
+  }
+
+  return children;
 } 
