@@ -15,7 +15,6 @@ export const executeTransaction = async (transaction, options = {}) => {
   const { timeout = TRANSACTION_TIMEOUT } = options;
 
   try {
-    // Send transaction with timeout
     const tx = await Promise.race([
       transaction(),
       new Promise((_, reject) => 
@@ -23,7 +22,6 @@ export const executeTransaction = async (transaction, options = {}) => {
       )
     ]);
 
-    // Wait for confirmation
     const receipt = await tx.wait();
     
     if (!receipt.status) {
@@ -51,65 +49,33 @@ export const executeTransaction = async (transaction, options = {}) => {
   }
 };
 
-export const validateContractState = async (contract, requirements = {}) => {
-  if (!contract) {
-    throw new ValidationError('Contract not initialized');
-  }
+export const validateGameState = (gameState) => {
+  if (!gameState) return null;
 
-  try {
-    // Check if contract is deployed
-    const code = await contract.provider.getCode(contract.target);
-    if (code === '0x') {
-      throw new ValidationError('Contract not deployed');
-    }
-
-    // Check additional requirements
-    for (const [check, message] of Object.entries(requirements)) {
-      if (!await check()) {
-        throw new ValidationError(message);
-      }
-    }
-
-    return true;
-  } catch (error) {
-    if (error instanceof ValidationError) {
-      throw error;
-    }
-    throw new ContractError(
-      'Contract validation failed',
-      ERROR_CODES.CONTRACT_ERROR,
-      { originalError: error }
-    );
-  }
+  return {
+    isActive: gameState.isActive || false,
+    chosenNumber: gameState.chosenNumber?.toString() || '0',
+    result: gameState.result?.toString() || '0',
+    amount: gameState.amount?.toString() || '0',
+    timestamp: gameState.timestamp?.toString() || '0',
+    payout: gameState.payout?.toString() || '0',
+    randomWord: gameState.randomWord?.toString() || '0',
+    status: gameState.status || 0
+  };
 };
 
-export const formatContractError = (error) => {
-  // Handle specific contract revert reasons
-  if (error.data?.message) {
-    return new ContractError(
-      error.data.message,
-      ERROR_CODES.CONTRACT_ERROR
-    );
-  }
+export const formatBetHistory = (bet) => {
+  if (!bet) return null;
+  
+  return {
+    chosenNumber: bet.chosenNumber.toString(),
+    rolledNumber: bet.rolledNumber.toString(),
+    amount: bet.amount.toString(),
+    timestamp: bet.timestamp.toString()
+  };
+};
 
-  // Handle user rejection
-  if (error.code === ERROR_CODES.USER_REJECTED) {
-    return new ContractError(
-      'Transaction rejected by user',
-      ERROR_CODES.USER_REJECTED
-    );
-  }
-
-  // Handle network errors
-  if (error.code === ERROR_CODES.NETWORK_ERROR) {
-    return new ContractError(
-      'Network error occurred',
-      ERROR_CODES.NETWORK_ERROR
-    );
-  }
-
-  return new ContractError(
-    error.message || 'Unknown contract error',
-    error.code || ERROR_CODES.CONTRACT_ERROR
-  );
+export const parseGameStatus = (status) => {
+  const statuses = ['PENDING', 'STARTED', 'COMPLETED_WIN', 'COMPLETED_LOSS', 'CANCELLED'];
+  return statuses[status] || 'UNKNOWN';
 }; 

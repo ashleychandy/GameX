@@ -24,21 +24,26 @@ export function useContract(contractType) {
 
   const initializeContract = useCallback(async () => {
     if (!provider || !signer || !CONTRACT_TYPES[contractType]) {
+      setContract(null);
       setIsValid(false);
       return;
     }
 
     try {
       const { address, abi } = CONTRACT_TYPES[contractType];
-      if (!address || !abi) {
-        throw new Error(`Invalid contract configuration for ${contractType}`);
+      const contract = new ethers.Contract(address, abi, signer);
+      
+      // Verify contract is deployed
+      const code = await provider.getCode(address);
+      if (code === '0x') {
+        throw new Error('Contract not deployed');
       }
 
-      const contract = new ethers.Contract(address, abi, signer);
       setContract(contract);
       setIsValid(true);
     } catch (error) {
       console.error(`Failed to initialize ${contractType} contract:`, error);
+      setContract(null);
       setIsValid(false);
     }
   }, [provider, signer, contractType]);
