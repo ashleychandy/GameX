@@ -1,38 +1,24 @@
 import { ethers } from 'ethers';
-import { TRANSACTION_TIMEOUT, ERROR_CODES } from './constants';
-import { ValidationError } from './validation';
+import { TRANSACTION_TIMEOUT, ERROR_CODES, GAME_STATUS } from './constants';
+import { handleError } from './errorHandling';
 
-export class ContractError extends Error {
-  constructor(message, code, details = {}) {
-    super(message);
-    this.name = 'ContractError';
-    this.code = code;
-    this.details = details;
-  }
-}
-
-export const getContractWithSigner = (contract, signer) => {
-  if (!contract || !signer) {
-    throw new ContractError(
-      'Contract or signer not initialized',
-      ERROR_CODES.INITIALIZATION_ERROR
-    );
-  }
-  return contract.connect(signer);
-};
-
-export const executeTransaction = async (transaction, options = {}) => {
-  const { 
+export const executeTransaction = async (
+  transactionFn,
+  { 
     timeout = TRANSACTION_TIMEOUT,
     gasLimit,
-    gasPrice
-  } = options;
-
+    gasPrice,
+    nonce,
+    value
+  } = {}
+) => {
   try {
     const tx = await Promise.race([
-      transaction({
+      transactionFn({
         ...(gasLimit && { gasLimit }),
-        ...(gasPrice && { gasPrice })
+        ...(gasPrice && { gasPrice }),
+        ...(nonce && { nonce }),
+        ...(value && { value })
       }),
       new Promise((_, reject) => 
         setTimeout(() => reject(new Error('Transaction timeout')), timeout)
@@ -40,84 +26,89 @@ export const executeTransaction = async (transaction, options = {}) => {
     ]);
 
     const receipt = await tx.wait();
-    return validateContractResponse(receipt);
-  } catch (error) {
-    if (error.code === ERROR_CODES.USER_REJECTED) {
-      throw new ContractError(
-        'Transaction rejected by user',
-        ERROR_CODES.USER_REJECTED
-      );
+    
+    if (receipt.status === 0) {
+      throw new Error('Transaction failed');
     }
 
-    throw new ContractError(
-      error.message || 'Transaction failed',
-      error.code || ERROR_CODES.CONTRACT_ERROR,
-      { originalError: error }
-    );
+    return receipt;
+  } catch (error) {
+    const { message, code } = handleError(error);
+    
+    // Rethrow user rejections without modification
+    if (code === ERROR_CODES.USER_REJECTED) {
+      throw error;
+    }
+
+    throw new Error(`Transaction failed: ${message}`);
   }
 };
 
-export const estimateGas = async (contract, method, args = [], options = {}) => {
+export const estimateGas = async (contract, method, args = [], value = 0) => {
   try {
-    const gasEstimate = await contract.estimateGas[method](...args, options);
-    // Add 20% buffer for safety
+    const gasEstimate = await contract.estimateGas[method](...args, { value });
+    // Add 20% buffer to gas estimate
     return gasEstimate.mul(120).div(100);
   } catch (error) {
     console.error('Gas estimation failed:', error);
-    throw new ContractError(
-      'Failed to estimate gas',
-      ERROR_CODES.GAS_ESTIMATE_ERROR,
-      { method, args, error }
-    );
+    throw error;
   }
 };
 
-export const formatContractError = (error) => {
-  if (error.reason) {
-    return new ContractError(error.reason, ERROR_CODES.CONTRACT_ERROR);
+export const validateGameState = (gameState) => {
+  if (!gameState) {
+    return {
+      isActive: false,
+      status: GAME_STATUS.IDLE,
+      chosenNumber: 0,
+      amount: ethers.parseEther('0'),
+      requestId: null,
+      result: null,
+      payout: ethers.parseEther('0')
+    };
   }
 
-  if (error.message.includes('user rejected')) {
-    return new ContractError(
-      'Transaction rejected by user',
-      ERROR_CODES.USER_REJECTED
-    );
-  }
-
-  return new ContractError(
-    'Contract interaction failed',
-    ERROR_CODES.CONTRACT_ERROR,
-    { originalError: error }
-  );
-};
-
-export const formatBetHistory = (bet) => {
-  if (!bet) return null;
-  
   return {
-    chosenNumber: bet.chosenNumber.toString(),
-    rolledNumber: bet.rolledNumber.toString(),
-    amount: bet.amount.toString(),
-    timestamp: bet.timestamp.toString()
+    isActive: gameState.isActive || false,
+    status: gameState.status || GAME_STATUS.IDLE,
+    chosenNumber: Number(gameState.chosenNumber) || 0,
+    amount: gameState.amount || ethers.parseEther('0'),
+    requestId: gameState.requestId || null,
+    result: gameState.result ? Number(gameState.result) : null,
+    payout: gameState.payout || ethers.parseEther('0')
   };
 };
 
-export const parseGameStatus = (status) => {
-  const statuses = ['PENDING', 'STARTED', 'COMPLETED_WIN', 'COMPLETED_LOSS', 'CANCELLED'];
-  return statuses[status] || 'UNKNOWN';
+export const validateGameData = (data) => {
+  return {
+    isActive: data?.isActive || false,
+    chosenNumber: data?.chosenNumber?.toString() || '0',
+    amount: data?.amount?.toString() || '0',
+    status: data?.status || GAME_STATUS.IDLE,
+    requestId: data?.requestId || null,
+    result: data?.result?.toString() || null,
+    payout: data?.payout?.toString() || '0'
+  };
 };
 
-export const withRetry = async (fn, maxRetries = 3) => {
-  let lastError;
-  
-  for (let i = 0; i < maxRetries; i++) {
-    try {
-      return await fn();
-    } catch (error) {
-      lastError = error;
-      await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, i)));
-    }
+export class ContractError extends Error {
+  constructor(message, code = 'CONTRACT_ERROR') {
+    super(message);
+    this.name = 'ContractError';
+    this.code = code;
+  }
+}
+
+export const handleContractError = (error) => {
+  // Handle specific contract errors
+  if (error.code === 'ACTION_REJECTED') {
+    throw new ContractError('Transaction was rejected by user', 'USER_REJECTED');
   }
   
-  throw lastError;
-}; 
+  if (error.code === 'UNPREDICTABLE_GAS_LIMIT') {
+    throw new ContractError('Transaction would fail - check your inputs', 'TRANSACTION_WOULD_FAIL');
+  }
+
+  // Generic contract error
+  throw new ContractError(error.message || 'Contract operation failed');
+};

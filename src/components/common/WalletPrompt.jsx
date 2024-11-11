@@ -32,9 +32,10 @@ const Description = styled.p`
   line-height: 1.6;
 `;
 
-const Icon = styled.div`
-  font-size: 3rem;
-  margin-bottom: 1.5rem;
+const StatusText = styled.p`
+  color: ${({ theme }) => theme.text.secondary};
+  margin-top: 1rem;
+  font-size: 0.9rem;
 `;
 
 export function WalletPrompt() {
@@ -46,7 +47,6 @@ export function WalletPrompt() {
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}
     >
-      <Icon>👛</Icon>
       <Title>Connect Your Wallet</Title>
       <Description>
         Please connect your wallet to access the game. You'll need some GAMEX tokens to play.
@@ -60,6 +60,11 @@ export function WalletPrompt() {
       >
         {isConnecting ? 'Connecting...' : 'Connect Wallet'}
       </Button>
+      {isConnecting && (
+        <StatusText>
+          Please check your wallet for connection request...
+        </StatusText>
+      )}
     </PromptContainer>
   );
 } 

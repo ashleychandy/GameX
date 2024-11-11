@@ -1,152 +1,124 @@
-import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { ethers } from 'ethers';
-import { NETWORKS, DEFAULT_NETWORK, ERROR_CODES } from '../utils/constants';
-import { handleError } from '../utils/errorHandling';
 import { toast } from 'react-toastify';
+import { handleError } from '../utils/errorHandling';
+import { SUPPORTED_CHAIN_ID } from '../utils/constants';
+import DiceABI from '../abi/Dice.json';
 import TokenABI from '../abi/Token.json';
+import { NETWORKS } from '../utils/constants';
+import { config } from '../utils/config';
 
-const WalletContext = createContext();
+const WalletContext = createContext(null);
 
 export function WalletProvider({ children }) {
+  const [isConnected, setIsConnected] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [address, setAddress] = useState(null);
   const [provider, setProvider] = useState(null);
   const [signer, setSigner] = useState(null);
-  const [address, setAddress] = useState(null);
+  const [diceContract, setDiceContract] = useState(null);
+  const [tokenContract, setTokenContract] = useState(null);
   const [chainId, setChainId] = useState(null);
-  const [balance, setBalance] = useState('0');
-  const [isConnecting, setIsConnecting] = useState(false);
 
-  const updateBalance = useCallback(async () => {
-    if (!address || !signer) return;
-    
+  const resetWalletState = useCallback(() => {
+    setIsConnected(false);
+    setAddress(null);
+    setProvider(null);
+    setSigner(null);
+    setDiceContract(null);
+    setTokenContract(null);
+    localStorage.removeItem('wallet-autoconnect');
+  }, []);
+
+  const initializeContracts = useCallback(async (signer) => {
     try {
+      const diceContract = new ethers.Contract(
+        NETWORKS.SEPOLIA.contracts.dice,
+        DiceABI.abi,
+        signer
+      );
+
       const tokenContract = new ethers.Contract(
-        DEFAULT_NETWORK.contracts.token,
+        NETWORKS.SEPOLIA.contracts.token,
         TokenABI.abi,
         signer
       );
-      const tokenBalance = await tokenContract.balanceOf(address);
-      setBalance(tokenBalance.toString());
-    } catch (error) {
-      console.error('Error fetching token balance:', error);
-      toast.error('Failed to fetch token balance');
-    }
-  }, [address, signer]);
 
-  const switchNetwork = async () => {
-    try {
-      const chainIdHex = `0x${DEFAULT_NETWORK.chainId.toString(16)}`;
-      
-      await window.ethereum.request({
-        method: 'wallet_switchEthereumChain',
-        params: [{ chainId: chainIdHex }],
-      });
-      return true;
+      setDiceContract(diceContract);
+      setTokenContract(tokenContract);
     } catch (error) {
-      if (error.code === 4902) {
-        try {
-          await window.ethereum.request({
-            method: 'wallet_addEthereumChain',
-            params: [{
-              chainId: `0x${DEFAULT_NETWORK.chainId.toString(16)}`,
-              chainName: DEFAULT_NETWORK.name,
-              nativeCurrency: {
-                name: DEFAULT_NETWORK.nativeCurrency.name,
-                symbol: DEFAULT_NETWORK.nativeCurrency.symbol,
-                decimals: DEFAULT_NETWORK.nativeCurrency.decimals
-              },
-              rpcUrls: [DEFAULT_NETWORK.rpcUrl],
-              blockExplorerUrls: [DEFAULT_NETWORK.explorer]
-            }]
-          });
-          return true;
-        } catch (addError) {
-          console.error('Error adding network:', addError);
-          toast.error('Failed to add network to MetaMask');
-          return false;
-        }
-      }
-      console.error('Error switching network:', error);
-      toast.error('Failed to switch network');
-      return false;
+      console.error('Contract initialization failed:', error);
+      throw error;
     }
-  };
+  }, []);
 
   const connectWallet = useCallback(async () => {
     if (!window.ethereum) {
-      toast.error('Please install MetaMask');
+      toast.error('Please install MetaMask!');
       return;
     }
 
-    setIsConnecting(true);
-
     try {
-      const provider = new ethers.BrowserProvider(window.ethereum);
-      const network = await provider.getNetwork();
-      
-      const currentChainId = Number(network.chainId);
-      const expectedChainId = Number(DEFAULT_NETWORK.chainId);
-
-      if (currentChainId !== expectedChainId) {
-        const switched = await switchNetwork();
-        if (!switched) {
-          throw new Error(`Please switch to ${DEFAULT_NETWORK.name} network`);
-        }
-        // Get updated provider after network switch
-        const updatedProvider = new ethers.BrowserProvider(window.ethereum);
-        const updatedNetwork = await updatedProvider.getNetwork();
-        if (Number(updatedNetwork.chainId) !== expectedChainId) {
-          throw new Error(`Please connect to ${DEFAULT_NETWORK.name} network`);
-        }
-      }
+      setIsConnecting(true);
 
       const accounts = await window.ethereum.request({ 
         method: 'eth_requestAccounts' 
       });
+
+      const chainId = await window.ethereum.request({ 
+        method: 'eth_chainId' 
+      });
       
-      if (!accounts || accounts.length === 0) {
-        throw new Error('No accounts found');
+      const currentChainId = parseInt(chainId, 16);
+      setChainId(currentChainId);
+
+      if (currentChainId !== SUPPORTED_CHAIN_ID) {
+        try {
+          await window.ethereum.request({
+            method: 'wallet_switchEthereumChain',
+            params: [{ chainId: `0x${SUPPORTED_CHAIN_ID.toString(16)}` }],
+          });
+        } catch (error) {
+          toast.error('Please switch to the correct network');
+          throw error;
+        }
       }
 
+      const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
-      const address = accounts[0];
+      
+      await initializeContracts(signer);
 
       setProvider(provider);
       setSigner(signer);
-      setAddress(address);
-      setChainId(currentChainId);
-
-      await updateBalance();
+      setAddress(accounts[0]);
+      setIsConnected(true);
+      
+      localStorage.setItem('wallet-autoconnect', 'true');
       
       toast.success('Wallet connected successfully!');
-
     } catch (error) {
-      console.error('Connection error:', error);
       const { message } = handleError(error);
       toast.error(message);
+      resetWalletState();
     } finally {
       setIsConnecting(false);
     }
-  }, [updateBalance]);
+  }, [initializeContracts, resetWalletState]);
 
   const disconnectWallet = useCallback(() => {
-    setProvider(null);
-    setSigner(null);
-    setAddress(null);
-    setChainId(null);
-    setBalance('0');
-    toast.info('Wallet disconnected');
-  }, []);
+    resetWalletState();
+    toast.success('Wallet disconnected');
+  }, [resetWalletState]);
 
-  // Handle account changes
   useEffect(() => {
     if (!window.ethereum) return;
 
     const handleAccountsChanged = (accounts) => {
       if (accounts.length === 0) {
-        disconnectWallet();
-      } else if (accounts[0] !== address) {
+        resetWalletState();
+      } else {
         setAddress(accounts[0]);
-        updateBalance();
       }
     };
 
@@ -154,45 +126,53 @@ export function WalletProvider({ children }) {
       window.location.reload();
     };
 
+    const handleDisconnect = () => {
+      resetWalletState();
+    };
+
     window.ethereum.on('accountsChanged', handleAccountsChanged);
     window.ethereum.on('chainChanged', handleChainChanged);
+    window.ethereum.on('disconnect', handleDisconnect);
 
     return () => {
-      window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
-      window.ethereum.removeListener('chainChanged', handleChainChanged);
+      if (window.ethereum.removeListener) {
+        window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
+        window.ethereum.removeListener('chainChanged', handleChainChanged);
+        window.ethereum.removeListener('disconnect', handleDisconnect);
+      }
     };
-  }, [address, disconnectWallet, updateBalance]);
+  }, [resetWalletState]);
 
-  // Update balance periodically
   useEffect(() => {
-    if (!address) return;
+    const autoConnect = async () => {
+      if (window.ethereum && localStorage.getItem('wallet-autoconnect')) {
+        try {
+          await connectWallet();
+        } catch (error) {
+          console.error('Auto-connect failed:', error);
+          resetWalletState();
+        }
+      }
+    };
 
-    const interval = setInterval(updateBalance, 10000); // Every 10 seconds
-    return () => clearInterval(interval);
-  }, [address, updateBalance]);
-
-  // Network comparison (fix for bigint comparison)
-  const isCorrectNetwork = useCallback(() => {
-    // Convert both to numbers for comparison
-    const currentChainId = Number(chainId);
-    const expectedChainId = Number(DEFAULT_NETWORK.chainId);
-    return currentChainId === expectedChainId;
-  }, [chainId]);
-
-  const value = {
-    provider,
-    signer,
-    address,
-    chainId,
-    balance,
-    isConnecting,
-    connectWallet,
-    disconnectWallet,
-    updateBalance
-  };
+    autoConnect();
+  }, [connectWallet, resetWalletState]);
 
   return (
-    <WalletContext.Provider value={value}>
+    <WalletContext.Provider
+      value={{
+        isConnected,
+        isConnecting,
+        address,
+        provider,
+        signer,
+        diceContract,
+        tokenContract,
+        chainId,
+        connectWallet,
+        disconnectWallet
+      }}
+    >
       {children}
     </WalletContext.Provider>
   );

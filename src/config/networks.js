@@ -7,8 +7,8 @@ export const SUPPORTED_NETWORKS = {
       symbol: 'ETH',
       decimals: 18
     },
-    rpcUrls: ['https://eth-sepolia.g.alchemy.com/v2/your-api-key'],
-    blockExplorerUrls: ['https://sepolia.etherscan.io']
+    rpcUrls: [import.meta.env.SEPOLIA_TESTNET_RPC],
+    blockExplorerUrls: [import.meta.env.VITE_EXPLORER_URL]
   }
 };
 

@@ -2,6 +2,7 @@ import React from 'react';
 import { RouterProvider } from 'react-router-dom';
 import { ThemeProvider } from 'styled-components';
 import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 import { WalletProvider } from './contexts/WalletContext';
 import { GameProvider } from './contexts/GameContext';
 import { router } from './routes';
@@ -19,14 +20,14 @@ const theme = {
 
 function App() {
   return (
-    <ThemeProvider theme={theme}>
-      <ErrorBoundary>
-        <WalletProvider>
-          <GameProvider>
+    <ErrorBoundary>
+      <WalletProvider>
+        <GameProvider>
+          <ThemeProvider theme={theme}>
             <GlobalStyle />
             <RouterProvider router={router} />
             <ToastContainer
-              position="bottom-right"
+              position="top-right"
               autoClose={5000}
               hideProgressBar={false}
               newestOnTop
@@ -35,12 +36,11 @@ function App() {
               pauseOnFocusLoss
               draggable
               pauseOnHover
-              theme="dark"
             />
-          </GameProvider>
-        </WalletProvider>
-      </ErrorBoundary>
-    </ThemeProvider>
+          </ThemeProvider>
+        </GameProvider>
+      </WalletProvider>
+    </ErrorBoundary>
   );
 }
 

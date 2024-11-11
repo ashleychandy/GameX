@@ -47,6 +47,11 @@ const StyledButton = styled(MotionButton)`
     opacity: 0.6;
     cursor: not-allowed;
   }
+
+  &:focus-visible {
+    outline: 2px solid ${({ theme }) => theme.primary};
+    outline-offset: 2px;
+  }
 `;
 
 export const Button = React.forwardRef(({ 

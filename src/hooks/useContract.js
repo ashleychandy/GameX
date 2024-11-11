@@ -1,18 +1,17 @@
 import { useState, useEffect, useCallback } from 'react';
 import { ethers } from 'ethers';
 import { useWallet } from '../contexts/WalletContext';
-import { CONTRACTS } from '../utils/constants';
+import { NETWORKS } from '../utils/constants';
 import DiceABI from '../abi/Dice.json';
 import TokenABI from '../abi/Token.json';
-import { handleError } from '../utils/errorHandling';
 
 const CONTRACT_TYPES = {
   dice: {
-    address: CONTRACTS.DICE,
+    address: NETWORKS.SEPOLIA.contracts.dice,
     abi: DiceABI.abi
   },
   token: {
-    address: CONTRACTS.TOKEN,
+    address: NETWORKS.SEPOLIA.contracts.token,
     abi: TokenABI.abi
   }
 };
@@ -20,10 +19,10 @@ const CONTRACT_TYPES = {
 export function useContract(contractType) {
   const [contract, setContract] = useState(null);
   const [isValid, setIsValid] = useState(false);
-  const { provider, signer } = useWallet();
+  const { provider, signer, isConnected } = useWallet();
 
   const initializeContract = useCallback(async () => {
-    if (!provider || !signer || !CONTRACT_TYPES[contractType]) {
+    if (!isConnected || !provider || !signer || !CONTRACT_TYPES[contractType]) {
       setContract(null);
       setIsValid(false);
       return;
@@ -31,12 +30,20 @@ export function useContract(contractType) {
 
     try {
       const { address, abi } = CONTRACT_TYPES[contractType];
+      
+      if (!address) {
+        console.error(`${contractType} contract address not configured`);
+        return;
+      }
+
+      // Create contract instance
       const contract = new ethers.Contract(address, abi, signer);
       
       // Verify contract is deployed
       const code = await provider.getCode(address);
       if (code === '0x') {
-        throw new Error('Contract not deployed');
+        console.error(`${contractType} contract not deployed at ${address}`);
+        return;
       }
 
       setContract(contract);
@@ -46,7 +53,7 @@ export function useContract(contractType) {
       setContract(null);
       setIsValid(false);
     }
-  }, [provider, signer, contractType]);
+  }, [provider, signer, contractType, isConnected]);
 
   useEffect(() => {
     initializeContract();

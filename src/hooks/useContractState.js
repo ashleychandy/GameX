@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useWallet } from '../contexts/WalletContext';
 import { useContract } from './useContract';
-import { validateGameState } from '../utils/contractHelpers';
+import { ethers } from 'ethers';
 
 export function useContractState() {
   const { address } = useWallet();
@@ -9,78 +9,67 @@ export function useContractState() {
   
   const [state, setState] = useState({
     contractBalance: '0',
-    minBet: '0',
-    maxBet: '0',
-    houseEdge: '0',
-    paused: false
+    paused: false,
+    playerStats: {
+      winRate: '0',
+      averageBet: '0',
+      totalGamesWon: '0',
+      totalGamesLost: '0'
+    },
+    defaultHistorySize: '0',
+    maxBet: '0'
   });
   
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
   const fetchContractState = useCallback(async () => {
-    if (!contract) return;
+    if (!contract || !address) {
+      setIsLoading(false);
+      return;
+    }
 
     try {
       setIsLoading(true);
       setError(null);
 
-      const [
-        balance,
-        minBet,
-        maxBet,
-        houseEdge,
-        paused
-      ] = await Promise.all([
+      const [balance, paused, playerStats, historySize] = await Promise.all([
         contract.getContractBalance(),
-        contract.minBet(),
-        contract.maxBet(),
-        contract.houseEdge(),
-        contract.paused()
+        contract.paused(),
+        contract.getPlayerStats(address),
+        contract.DEFAULT_HISTORY_SIZE()
       ]);
+
+      const maxBet = calculateMaxBet(balance);
 
       setState({
         contractBalance: balance.toString(),
-        minBet: minBet.toString(),
-        maxBet: maxBet.toString(),
-        houseEdge: houseEdge.toString(),
-        paused
+        paused,
+        playerStats: {
+          winRate: playerStats.winRate.toString(),
+          averageBet: playerStats.averageBet.toString(),
+          totalGamesWon: playerStats.totalGamesWon.toString(),
+          totalGamesLost: playerStats.totalGamesLost.toString()
+        },
+        defaultHistorySize: historySize.toString(),
+        maxBet: maxBet.toString()
       });
-    } catch (err) {
-      setError(err.message);
-      console.error('Error fetching contract state:', err);
+
+    } catch (error) {
+      setError(error.message);
     } finally {
       setIsLoading(false);
     }
-  }, [contract]);
+  }, [contract, address]);
 
   useEffect(() => {
     fetchContractState();
-    
-    // Setup contract event listeners for state changes
-    if (contract) {
-      const filters = [
-        contract.filters.ContractFunded(),
-        contract.filters.FundsWithdrawn(),
-        contract.filters.GameParametersUpdated()
-      ];
-      
-      filters.forEach(filter => {
-        contract.on(filter, fetchContractState);
-      });
-      
-      return () => {
-        filters.forEach(filter => {
-          contract.off(filter, fetchContractState);
-        });
-      };
-    }
-  }, [contract, fetchContractState]);
+  }, [fetchContractState]);
 
   return {
-    ...state,
+    state,
     isLoading,
     error,
-    refetch: fetchContractState
+    refreshState: fetchContractState
   };
 } 

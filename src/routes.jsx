@@ -1,4 +1,4 @@
-import { createBrowserRouter, Navigate } from "react-router-dom";
+import { createBrowserRouter } from "react-router-dom";
 import React, { lazy, Suspense } from "react";
 import { Layout } from "./components/layout/Layout";
 import { ErrorBoundary } from "./components/common/ErrorBoundary";
@@ -32,7 +32,6 @@ const routeMetadata = {
   }
 };
 
-// Function to get metadata for a given route
 export const getRouteMetadata = (pathname) => {
   return routeMetadata[pathname] || {
     title: 'Page Not Found',
@@ -47,11 +46,11 @@ export const router = createBrowserRouter([
     errorElement: <ErrorBoundary />,
     children: [
       {
-        path: "/",
+        index: true,
         element: <PageWrapper><HomePage /></PageWrapper>
       },
       {
-        path: "/game",
+        path: "game",
         element: (
           <PageWrapper>
             <ProtectedRoute>
@@ -61,7 +60,7 @@ export const router = createBrowserRouter([
         )
       },
       {
-        path: "/admin",
+        path: "admin",
         element: (
           <PageWrapper>
             <ProtectedRoute requireAdmin>

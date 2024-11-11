@@ -1,5 +1,16 @@
 import { ethers } from 'ethers';
 
+export const formatDate = (timestamp) => {
+  if (!timestamp) return '';
+  const date = new Date(timestamp);
+  return date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+};
+
 export const formatAmount = (amount) => {
   if (!amount) return '0';
   try {

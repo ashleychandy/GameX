@@ -1,6 +1,6 @@
 import { toast } from 'react-toastify';
 import { TRANSACTION_TIMEOUT, ERROR_CODES } from './constants';
-import { ContractError } from './contractHelpers';
+import { ContractError, handleContractError } from './contractHelpers';
 
 export const createTransactionToast = (message, type = 'info') => {
   const toastId = Date.now();
@@ -20,54 +20,36 @@ export const updateTransactionToast = (toastId, message, type = 'success') => {
   });
 };
 
-export const handleTransaction = async (
-  transaction,
-  {
-    pendingMessage = 'Transaction pending...',
-    successMessage = 'Transaction successful',
-    errorMessage = 'Transaction failed',
-    timeout = TRANSACTION_TIMEOUT
-  } = {}
-) => {
-  const toastId = createTransactionToast(pendingMessage);
-
+export const handleTransaction = async (tx, options = {}) => {
+  const { onSubmitted, onSuccess, onError } = options;
+  
   try {
-    const tx = await Promise.race([
-      transaction(),
-      new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Transaction timeout')), timeout)
-      )
-    ]);
-
-    updateTransactionToast(toastId, 'Waiting for confirmation...');
+    if (onSubmitted) onSubmitted();
     const receipt = await tx.wait();
-
-    if (!receipt.status) {
-      throw new ContractError('Transaction failed', ERROR_CODES.CONTRACT_ERROR);
-    }
-
-    updateTransactionToast(toastId, successMessage, 'success');
+    if (onSuccess) onSuccess(receipt);
     return receipt;
   } catch (error) {
-    const message = error.code === ERROR_CODES.USER_REJECTED
-      ? 'Transaction rejected by user'
-      : errorMessage;
-
-    updateTransactionToast(toastId, message, 'error');
+    if (onError) onError(error);
     throw error;
   }
 };
 
-export const estimateGas = async (contract, method, args = [], buffer = 1.1) => {
+export const estimateGas = async (contract, method, args = []) => {
   try {
     const gasEstimate = await contract.estimateGas[method](...args);
-    return Math.ceil(gasEstimate * buffer);
+    return Math.floor(gasEstimate * 1.2); // Add 20% buffer
   } catch (error) {
     console.error('Gas estimation failed:', error);
-    throw new ContractError(
-      'Failed to estimate gas',
-      ERROR_CODES.CONTRACT_ERROR,
-      { method, args }
-    );
+    return 500000; // Default fallback gas limit
+  }
+};
+
+export const executeTransaction = async (transaction, options = {}) => {
+  try {
+    const tx = await transaction();
+    const receipt = await tx.wait();
+    return receipt;
+  } catch (error) {
+    throw handleContractError(error);
   }
 }; 

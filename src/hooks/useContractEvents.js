@@ -4,44 +4,51 @@ import { toast } from 'react-toastify';
 import { formatAmount } from '../utils/format';
 
 export function useContractEvents() {
-  const { diceContract: dice, address } = useWallet();
+  const { diceContract: contract, address } = useWallet();
 
   useEffect(() => {
-    if (!dice || !address) return;
+    if (!contract || !address) return;
 
-    const betPlacedFilter = dice.filters.GameStarted(address);
-    const gameResolvedFilter = dice.filters.GameCompleted(address);
-    const vrfFulfilledFilter = dice.filters.RandomWordsFulfilled();
-
-    const handleBetPlaced = (player, number, amount, event) => {
-      toast.info(
-        `Bet placed: ${number} for ${formatAmount(amount)} DICE`,
-        { toastId: event.transactionHash }
-      );
+    const handleGameStarted = (player, number, amount, event) => {
+      if (player.toLowerCase() === address.toLowerCase()) {
+        toast.info(
+          `Bet placed: ${number} for ${formatAmount(amount)} DICE`,
+          { toastId: event.transactionHash }
+        );
+      }
     };
 
-    const handleGameResolved = (player, result, payout, event) => {
-      const won = payout > 0;
-      toast.success(
-        won 
-          ? `You won ${formatAmount(payout)} DICE!` 
-          : 'Better luck next time!',
-        { toastId: event.transactionHash }
-      );
+    const handleGameCompleted = (player, result, payout, event) => {
+      if (player.toLowerCase() === address.toLowerCase()) {
+        const won = payout > 0;
+        toast.success(
+          won 
+            ? `You won ${formatAmount(payout)} DICE!` 
+            : 'Better luck next time!',
+          { toastId: event.transactionHash }
+        );
+      }
     };
 
-    const handleVRFFulfilled = (requestId, randomWord) => {
-      console.debug('VRF fulfilled:', { requestId, randomWord });
+    const handlePaused = (account) => {
+      toast.warning('Game has been paused by admin');
     };
 
-    dice.on(betPlacedFilter, handleBetPlaced);
-    dice.on(gameResolvedFilter, handleGameResolved);
-    dice.on(vrfFulfilledFilter, handleVRFFulfilled);
+    const handleUnpaused = (account) => {
+      toast.success('Game has been unpaused');
+    };
+
+    // Add event listeners
+    contract.on('GameStarted', handleGameStarted);
+    contract.on('GameCompleted', handleGameCompleted);
+    contract.on('Paused', handlePaused);
+    contract.on('Unpaused', handleUnpaused);
 
     return () => {
-      dice.off(betPlacedFilter, handleBetPlaced);
-      dice.off(gameResolvedFilter, handleGameResolved);
-      dice.off(vrfFulfilledFilter, handleVRFFulfilled);
+      contract.off('GameStarted', handleGameStarted);
+      contract.off('GameCompleted', handleGameCompleted);
+      contract.off('Paused', handlePaused);
+      contract.off('Unpaused', handleUnpaused);
     };
-  }, [dice, address]);
+  }, [contract, address]);
 } 

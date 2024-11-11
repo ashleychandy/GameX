@@ -1,8 +1,8 @@
 import { useState, useCallback } from 'react';
 import { useWallet } from '../contexts/WalletContext';
 import { useContract } from './useContract';
-import { validateGameState } from '../utils/contractHelpers';
-import { GAME_CONFIG } from '../utils/constants';
+import { formatAmount } from '../utils/format';
+import { GAME_STATES } from '../utils/constants';
 
 export function useGameData() {
   const { address } = useWallet();
@@ -17,22 +17,20 @@ export function useGameData() {
       setIsLoading(true);
       setError(null);
 
-      const [currentGame, canStart, playerStats] = await Promise.all([
+      const [currentGame, canStart] = await Promise.all([
         contract.getCurrentGame(address),
-        contract.canStartNewGame(address),
-        contract.getPlayerStats(address)
+        contract.canStartNewGame(address)
       ]);
 
       return {
-        currentGame: validateGameState(currentGame),
-        canStartNewGame: canStart,
-        stats: {
-          totalGames: playerStats.gamesPlayed.toString(),
-          totalWins: playerStats.gamesWon.toString(),
-          totalBets: playerStats.totalBets.toString(),
-          totalWinnings: playerStats.totalWinnings.toString(),
-          winRate: (playerStats.gamesWon / playerStats.gamesPlayed * 100).toFixed(2)
-        }
+        currentGame: {
+          isActive: currentGame.isActive,
+          chosenNumber: currentGame.chosenNumber.toString(),
+          amount: formatAmount(currentGame.amount),
+          status: currentGame.status,
+          payout: formatAmount(currentGame.payout)
+        },
+        canStartNewGame: canStart
       };
     } catch (err) {
       setError(err.message);

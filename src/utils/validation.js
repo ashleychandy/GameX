@@ -1,105 +1,81 @@
 import { ethers } from 'ethers';
-import { GAME_STATUS } from './constants';
-
-export class ValidationError extends Error {
-  constructor(message) {
-    super(message);
-    this.name = 'ValidationError';
-  }
-}
-
-export const validateGameState = (gameData) => {
-  if (!gameData || typeof gameData !== 'object') {
-    throw new ValidationError('Invalid game data structure');
-  }
-  
-  const requiredFields = ['isActive', 'chosenNumber', 'result', 'amount', 'status'];
-  const missingFields = requiredFields.filter(field => !(field in gameData));
-  
-  if (missingFields.length > 0) {
-    throw new ValidationError(`Missing required fields: ${missingFields.join(', ')}`);
-  }
-
-  return {
-    isActive: Boolean(gameData.isActive),
-    chosenNumber: ethers.formatUnits(gameData.chosenNumber || '0', 0),
-    result: ethers.formatUnits(gameData.result || '0', 0),
-    amount: ethers.formatEther(gameData.amount || '0'),
-    status: Number(gameData.status) || GAME_STATUS.PENDING,
-    timestamp: gameData.timestamp ? Number(gameData.timestamp) : Date.now()
-  };
-};
-
-export const validateBetAmount = (amount, minBet, maxBet) => {
-  const parsedAmount = ethers.parseEther(amount.toString());
-  const parsedMinBet = ethers.parseEther(minBet.toString());
-  const parsedMaxBet = ethers.parseEther(maxBet.toString());
-
-  if (parsedAmount.lt(parsedMinBet)) {
-    throw new ValidationError(`Bet amount must be at least ${minBet} tokens`);
-  }
-
-  if (parsedAmount.gt(parsedMaxBet)) {
-    throw new ValidationError(`Bet amount cannot exceed ${maxBet} tokens`);
-  }
-
-  return true;
-};
-
-export const validateContractResponse = (response) => {
-  if (!response || !response.hash) {
-    throw new ValidationError('Invalid contract response');
-  }
-  return response;
-};
+import { AppError } from './errorHandling';
+import { ERROR_CODES } from './constants';
 
 export const validateGameData = (data) => {
   if (!data || typeof data !== 'object') {
-    throw new Error('Invalid game data format');
+    throw new AppError('Invalid game data format', ERROR_CODES.VALIDATION_ERROR);
   }
 
-  // Ensure currentGame exists and has required fields
-  if (!data.currentGame || typeof data.currentGame !== 'object') {
-    data.currentGame = {
-      isActive: false,
-      chosenNumber: '0',
-      result: '0',
-      amount: '0',
-      timestamp: '0',
-      payout: '0',
-      randomWord: '0',
-      status: 0
-    };
-  }
-
-  // Ensure stats exists and has required fields
-  if (!data.stats || typeof data.stats !== 'object') {
-    data.stats = {
-      totalGames: '0',
-      totalBets: '0',
-      totalWinnings: '0',
-      totalLosses: '0',
-      lastPlayed: '0'
-    };
-  }
-
-  return {
+  const requiredFields = {
     currentGame: {
-      isActive: Boolean(data.currentGame.isActive),
-      chosenNumber: data.currentGame.chosenNumber?.toString() || '0',
-      result: data.currentGame.result?.toString() || '0',
-      amount: data.currentGame.amount?.toString() || '0',
-      timestamp: data.currentGame.timestamp?.toString() || '0',
-      payout: data.currentGame.payout?.toString() || '0',
-      randomWord: data.currentGame.randomWord?.toString() || '0',
-      status: Number(data.currentGame.status || 0)
+      isActive: 'boolean',
+      chosenNumber: 'number',
+      amount: 'string',
+      status: 'number',
+      timestamp: 'string',
+      result: 'string',
+      payout: 'string',
+      randomWord: 'string'
     },
     stats: {
-      totalGames: data.stats.totalGames?.toString() || '0',
-      totalBets: data.stats.totalBets?.toString() || '0',
-      totalWinnings: data.stats.totalWinnings?.toString() || '0',
-      totalLosses: data.stats.totalLosses?.toString() || '0',
-      lastPlayed: data.stats.lastPlayed?.toString() || '0'
+      totalGames: 'string',
+      totalBets: 'string',
+      totalWinnings: 'string',
+      totalLosses: 'string',
+      lastPlayed: 'string'
     }
   };
+
+  // Deep validation of nested objects
+  const validateObject = (obj, schema, path = '') => {
+    for (const [key, type] of Object.entries(schema)) {
+      const value = obj[key];
+      const fullPath = path ? `${path}.${key}` : key;
+
+      if (value === undefined) {
+        throw new AppError(`Missing required field: ${fullPath}`, ERROR_CODES.VALIDATION_ERROR);
+      }
+
+      if (typeof type === 'object') {
+        validateObject(value, type, fullPath);
+      } else if (typeof value !== type && !(type === 'number' && !isNaN(Number(value)))) {
+        throw new AppError(
+          `Invalid type for ${fullPath}. Expected ${type}, got ${typeof value}`,
+          ERROR_CODES.VALIDATION_ERROR
+        );
+      }
+    }
+  };
+
+  validateObject(data, requiredFields);
+  return data;
+};
+
+export const validateAmount = (amount, min, max) => {
+  try {
+    const parsedAmount = ethers.parseEther(amount.toString());
+    const parsedMin = ethers.parseEther(min.toString());
+    const parsedMax = ethers.parseEther(max.toString());
+
+    if (parsedAmount.lt(parsedMin)) {
+      throw new AppError(`Amount must be at least ${min}`, ERROR_CODES.INVALID_AMOUNT);
+    }
+
+    if (parsedAmount.gt(parsedMax)) {
+      throw new AppError(`Amount cannot exceed ${max}`, ERROR_CODES.INVALID_AMOUNT);
+    }
+
+    return parsedAmount;
+  } catch (error) {
+    if (error instanceof AppError) throw error;
+    throw new AppError('Invalid amount format', ERROR_CODES.INVALID_AMOUNT);
+  }
+};
+
+export const validateAddress = (address) => {
+  if (!address || !ethers.isAddress(address)) {
+    throw new AppError('Invalid address format', ERROR_CODES.INVALID_ADDRESS);
+  }
+  return address;
 };
