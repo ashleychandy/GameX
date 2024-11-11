@@ -1,58 +1,86 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useWallet } from '../contexts/WalletContext';
-import { handleError } from '../utils/errorHandling';
+import { useContract } from './useContract';
+import { validateGameState } from '../utils/contractHelpers';
 
-export function useContractState(contract) {
-  const [gameData, setGameData] = useState(null);
-  const [requestDetails, setRequestDetails] = useState(null);
-  const [history, setHistory] = useState([]);
-  const [error, setError] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
+export function useContractState() {
   const { address } = useWallet();
+  const { contract } = useContract('dice');
+  
+  const [state, setState] = useState({
+    contractBalance: '0',
+    minBet: '0',
+    maxBet: '0',
+    houseEdge: '0',
+    paused: false
+  });
+  
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const fetchGameState = useCallback(async () => {
-    if (!contract || !address) return;
-    
+  const fetchContractState = useCallback(async () => {
+    if (!contract) return;
+
     try {
       setIsLoading(true);
       setError(null);
 
-      const [gameState, details, previousBets] = await Promise.all([
-        contract.getCurrentGame(address),
-        contract.getCurrentRequestDetails(address),
-        contract.getPreviousBets(address)
+      const [
+        balance,
+        minBet,
+        maxBet,
+        houseEdge,
+        paused
+      ] = await Promise.all([
+        contract.getContractBalance(),
+        contract.minBet(),
+        contract.maxBet(),
+        contract.houseEdge(),
+        contract.paused()
       ]);
 
-      setGameData(gameState);
-      setRequestDetails({
-        requestId: details[0].toString(),
-        requestFulfilled: details[1],
-        requestActive: details[2]
+      setState({
+        contractBalance: balance.toString(),
+        minBet: minBet.toString(),
+        maxBet: maxBet.toString(),
+        houseEdge: houseEdge.toString(),
+        paused
       });
-      setHistory(previousBets.map(bet => ({
-        chosenNumber: bet.chosenNumber.toString(),
-        rolledNumber: bet.rolledNumber.toString(),
-        amount: bet.amount.toString(),
-        timestamp: bet.timestamp.toString()
-      })));
-    } catch (error) {
-      const { message } = handleError(error);
-      setError(message);
+    } catch (err) {
+      setError(err.message);
+      console.error('Error fetching contract state:', err);
     } finally {
       setIsLoading(false);
     }
-  }, [contract, address]);
+  }, [contract]);
 
   useEffect(() => {
-    fetchGameState();
-  }, [fetchGameState]);
+    fetchContractState();
+    
+    // Setup contract event listeners for state changes
+    if (contract) {
+      const filters = [
+        contract.filters.ContractFunded(),
+        contract.filters.FundsWithdrawn(),
+        contract.filters.GameParametersUpdated()
+      ];
+      
+      filters.forEach(filter => {
+        contract.on(filter, fetchContractState);
+      });
+      
+      return () => {
+        filters.forEach(filter => {
+          contract.off(filter, fetchContractState);
+        });
+      };
+    }
+  }, [contract, fetchContractState]);
 
   return {
-    gameData,
-    requestDetails,
-    history,
-    error,
+    ...state,
     isLoading,
-    refetch: fetchGameState
+    error,
+    refetch: fetchContractState
   };
 } 

@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { useWallet } from '../contexts/WalletContext';
 import { useContract } from './useContract';
-import { validateGameState, formatBetHistory } from '../utils/contractHelpers';
+import { validateGameState } from '../utils/contractHelpers';
 import { GAME_CONFIG } from '../utils/constants';
 
 export function useGameData() {
@@ -17,22 +17,22 @@ export function useGameData() {
       setIsLoading(true);
       setError(null);
 
-      const [userData, gameState, requestDetails] = await Promise.all([
-        contract.getUserData(address),
+      const [currentGame, canStart, playerStats] = await Promise.all([
         contract.getCurrentGame(address),
-        contract.getCurrentRequestDetails(address)
+        contract.canStartNewGame(address),
+        contract.getPlayerStats(address)
       ]);
 
       return {
-        currentGame: validateGameState(gameState),
-        totalGames: userData.totalGames.toString(),
-        totalBets: userData.totalBets.toString(),
-        totalWinnings: userData.totalWinnings.toString(),
-        totalLosses: userData.totalLosses.toString(),
-        lastPlayed: userData.lastPlayed.toString(),
-        requestId: requestDetails.requestId.toString(),
-        requestFulfilled: requestDetails.requestFulfilled,
-        requestActive: requestDetails.requestActive
+        currentGame: validateGameState(currentGame),
+        canStartNewGame: canStart,
+        stats: {
+          totalGames: playerStats.gamesPlayed.toString(),
+          totalWins: playerStats.gamesWon.toString(),
+          totalBets: playerStats.totalBets.toString(),
+          totalWinnings: playerStats.totalWinnings.toString(),
+          winRate: (playerStats.gamesWon / playerStats.gamesPlayed * 100).toFixed(2)
+        }
       };
     } catch (err) {
       setError(err.message);
@@ -42,27 +42,8 @@ export function useGameData() {
     }
   }, [contract, address]);
 
-  const fetchGameHistory = useCallback(async (offset = 0, limit = GAME_CONFIG.HISTORY_LIMIT) => {
-    if (!contract || !address) return { bets: [], total: 0 };
-
-    try {
-      setIsLoading(true);
-      const { bets, total } = await contract.getPaginatedBets(address, offset, limit);
-      return {
-        bets: bets.map(formatBetHistory),
-        total: total.toNumber()
-      };
-    } catch (err) {
-      setError(err.message);
-      return { bets: [], total: 0 };
-    } finally {
-      setIsLoading(false);
-    }
-  }, [contract, address]);
-
   return {
     fetchGameData,
-    fetchGameHistory,
     isLoading,
     error
   };

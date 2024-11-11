@@ -1,4 +1,5 @@
 import React from 'react';
+import PropTypes from 'prop-types';
 import styled from 'styled-components';
 import { motion } from 'framer-motion';
 import { Button } from './Button';
@@ -59,67 +60,35 @@ export class ErrorBoundary extends React.Component {
   }
 
   componentDidCatch(error, errorInfo) {
+    // Log to error reporting service
+    console.error('Error caught by boundary:', error, errorInfo);
     this.setState({
       error,
       errorInfo
     });
-
-    // Log to error reporting service
-    console.error('Error caught by boundary:', error, errorInfo);
   }
-
-  handleReset = () => {
-    this.setState({
-      hasError: false,
-      error: null,
-      errorInfo: null
-    });
-    this.props.onReset?.();
-  };
-
-  handleReload = () => {
-    window.location.reload();
-  };
 
   render() {
     if (this.state.hasError) {
-      const { error, errorInfo } = this.state;
-      const isDev = import.meta.env.DEV;
-
       return (
-        <ErrorContainer
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -20 }}
-        >
-          <ErrorTitle>Oops! Something went wrong</ErrorTitle>
-          <ErrorMessage>
-            {error?.message || 'An unexpected error occurred'}
-          </ErrorMessage>
-
-          {isDev && errorInfo && (
-            <ErrorDetails>
-              {error?.stack}
-              <br />
-              {errorInfo.componentStack}
-            </ErrorDetails>
-          )}
-
-          <ButtonGroup>
-            <Button onClick={this.handleReset} $variant="primary">
-              Try Again
-            </Button>
-            <Button onClick={this.handleReload} $variant="outline">
-              Reload Page
-            </Button>
-          </ButtonGroup>
-        </ErrorContainer>
+        <ErrorFallback 
+          error={this.state.error}
+          resetErrorBoundary={() => {
+            this.setState({ hasError: false });
+            this.props.onReset?.();
+          }}
+        />
       );
     }
 
     return this.props.children;
   }
 }
+
+ErrorBoundary.propTypes = {
+  children: PropTypes.node,
+  onReset: PropTypes.func
+};
 
 // Fallback component for Suspense
 export const ErrorFallback = ({ error, resetErrorBoundary }) => (

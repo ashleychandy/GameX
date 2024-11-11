@@ -1,10 +1,10 @@
-import { useCallback, useRef, useState, useEffect } from 'react';
-import { useContract } from './useContract';
+import { useState, useCallback, useEffect } from 'react';
 import { useWallet } from '../contexts/WalletContext';
-import { handleError } from '../utils/errorHandling';
-import { validateGameData } from '../utils/format';
-import { toast } from 'react-toastify';
+import { useContract } from './useContract';
 import { ethers } from 'ethers';
+import { toast } from 'react-toastify';
+import { handleError } from '../utils/errorHandling';
+import { GAME_STATES, GAME_CONFIG } from '../utils/constants';
 
 // Helper function to format amounts without decimals
 const formatAmount = (amount) => {
@@ -112,12 +112,10 @@ export function useGame() {
 
   // Add network validation
   const isCorrectNetwork = useCallback(() => {
-    // Convert chainId to number for comparison if it's a BigInt
     const currentChainId = typeof chainId === 'bigint' ? Number(chainId) : chainId;
     return currentChainId === 11155111; // Sepolia testnet
   }, [chainId]);
 
-  // Define fetchGameState first since it's used by other functions
   const fetchGameState = useCallback(async () => {
     if (!isValid || !contract || !address) return;
 
@@ -125,12 +123,7 @@ export function useGame() {
       setIsLoading(true);
       setError(null);
 
-      const [
-        userData,
-        requestDetails,
-        previousBets,
-        playerStats
-      ] = await Promise.all([
+      const [userData, requestDetails, previousBets, playerStats] = await Promise.all([
         contract.getUserData(address),
         contract.getCurrentRequestDetails(address),
         contract.getPreviousBets(address),

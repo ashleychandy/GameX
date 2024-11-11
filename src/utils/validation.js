@@ -1,5 +1,5 @@
 import { ethers } from 'ethers';
-import { GAME_CONFIG } from './constants';
+import { GAME_STATUS } from './constants';
 
 export class ValidationError extends Error {
   constructor(message) {
@@ -8,19 +8,49 @@ export class ValidationError extends Error {
   }
 }
 
-export const validateBetAmount = (amount, balance) => {
-  if (!amount || isNaN(amount) || parseFloat(amount) <= 0) {
-    throw new Error('Please enter a valid bet amount');
+export const validateGameState = (gameData) => {
+  if (!gameData || typeof gameData !== 'object') {
+    throw new ValidationError('Invalid game data structure');
+  }
+  
+  const requiredFields = ['isActive', 'chosenNumber', 'result', 'amount', 'status'];
+  const missingFields = requiredFields.filter(field => !(field in gameData));
+  
+  if (missingFields.length > 0) {
+    throw new ValidationError(`Missing required fields: ${missingFields.join(', ')}`);
   }
 
-  const betAmount = ethers.parseEther(amount.toString());
-  const userBalance = balance || ethers.parseEther('0');
+  return {
+    isActive: Boolean(gameData.isActive),
+    chosenNumber: ethers.formatUnits(gameData.chosenNumber || '0', 0),
+    result: ethers.formatUnits(gameData.result || '0', 0),
+    amount: ethers.formatEther(gameData.amount || '0'),
+    status: Number(gameData.status) || GAME_STATUS.PENDING,
+    timestamp: gameData.timestamp ? Number(gameData.timestamp) : Date.now()
+  };
+};
 
-  if (betAmount.gt(userBalance)) {
-    throw new Error('Insufficient balance');
+export const validateBetAmount = (amount, minBet, maxBet) => {
+  const parsedAmount = ethers.parseEther(amount.toString());
+  const parsedMinBet = ethers.parseEther(minBet.toString());
+  const parsedMaxBet = ethers.parseEther(maxBet.toString());
+
+  if (parsedAmount.lt(parsedMinBet)) {
+    throw new ValidationError(`Bet amount must be at least ${minBet} tokens`);
   }
 
-  return betAmount;
+  if (parsedAmount.gt(parsedMaxBet)) {
+    throw new ValidationError(`Bet amount cannot exceed ${maxBet} tokens`);
+  }
+
+  return true;
+};
+
+export const validateContractResponse = (response) => {
+  if (!response || !response.hash) {
+    throw new ValidationError('Invalid contract response');
+  }
+  return response;
 };
 
 export const validateGameData = (data) => {
@@ -73,25 +103,3 @@ export const validateGameData = (data) => {
     }
   };
 };
-
-export const validateContractResponse = (response) => {
-  if (!response || !response.hash) {
-    throw new ValidationError('Invalid contract response');
-  }
-  return response;
-};
-
-export const validateGameState = (gameData) => {
-  if (!gameData || typeof gameData !== 'object') {
-    throw new Error('Invalid game data');
-  }
-  
-  const requiredFields = ['isActive', 'chosenNumber', 'result', 'amount', 'status'];
-  for (const field of requiredFields) {
-    if (!(field in gameData)) {
-      throw new Error(`Missing required field: ${field}`);
-    }
-  }
-  
-  return true;
-}; 

@@ -1,100 +1,54 @@
 import { useState, useCallback, useEffect } from 'react';
 import { ethers } from 'ethers';
 import { useWallet } from '../contexts/WalletContext';
-import { handleError } from '../utils/errorHandling';
-import { TRANSACTION_TYPES, GAME_CONFIG } from '../utils/constants';
-import { toast } from 'react-toastify';
+import { executeTransaction } from '../utils/contractHelpers';
 
-export function useTokenApproval() {
-  const { tokenContract: token, diceContract: dice, address } = useWallet();
-  const [hasApproval, setHasApproval] = useState(false);
+export function useTokenApproval(spenderAddress) {
+  const { tokenContract, address } = useWallet();
+  const [allowance, setAllowance] = useState('0');
   const [isApproving, setIsApproving] = useState(false);
-  const [lastCheckedAmount, setLastCheckedAmount] = useState('0');
 
-  const checkAllowance = useCallback(async (amount) => {
-    if (!token || !dice || !address || !amount) {
-      console.debug('Missing parameters for allowance check:', { token, dice, address, amount });
-      return false;
-    }
+  const fetchAllowance = useCallback(async () => {
+    if (!tokenContract || !address || !spenderAddress) return;
 
     try {
-      const amountBN = ethers.parseEther(amount.toString());
-      const allowance = await token.allowance(address, dice.target);
-      
-      // Cache checked amount
-      setLastCheckedAmount(amount.toString());
-      
-      return allowance.gte(amountBN);
+      const currentAllowance = await tokenContract.allowance(address, spenderAddress);
+      setAllowance(ethers.formatEther(currentAllowance));
     } catch (error) {
-      console.error('Error checking allowance:', error);
-      return false;
+      console.error('Error fetching allowance:', error);
     }
-  }, [token, dice, address]);
+  }, [tokenContract, address, spenderAddress]);
 
-  const approveTokens = useCallback(async (amount) => {
-    if (!token || !dice || !amount || isNaN(amount)) {
-      throw new Error('Invalid approval parameters');
+  const approve = useCallback(async (amount) => {
+    if (!tokenContract || !spenderAddress) {
+      throw new Error('Token contract or spender not initialized');
     }
 
-    // Validate amount
-    const amountBN = ethers.parseEther(amount.toString());
-    if (amountBN.lt(GAME_CONFIG.MIN_BET)) {
-      throw new Error(`Minimum bet amount is ${ethers.formatEther(GAME_CONFIG.MIN_BET)} tokens`);
-    }
-    
     try {
       setIsApproving(true);
+      const parsedAmount = ethers.parseEther(amount.toString());
       
-      // Check existing allowance first
-      const hasExistingApproval = await checkAllowance(amount);
-      if (hasExistingApproval) {
-        setHasApproval(true);
-        return true;
-      }
+      await executeTransaction(() =>
+        tokenContract.approve(spenderAddress, parsedAmount)
+      );
 
-      // Prepare approval transaction
-      const tx = await token.approve(dice.target, amountBN);
-      toast.info('Approving tokens...', { toastId: TRANSACTION_TYPES.APPROVE });
-      
-      // Wait for confirmation
-      const receipt = await tx.wait();
-      if (!receipt.status) {
-        throw new Error('Token approval failed');
-      }
-
-      setHasApproval(true);
-      toast.success('Token approval successful');
+      await fetchAllowance();
       return true;
     } catch (error) {
-      const { message } = handleError(error);
-      toast.error(message, { toastId: TRANSACTION_TYPES.APPROVE });
-      throw new Error(message);
+      throw error;
     } finally {
       setIsApproving(false);
     }
-  }, [token, dice, checkAllowance]);
+  }, [tokenContract, spenderAddress, fetchAllowance]);
 
-  // Reset approval state when address changes
   useEffect(() => {
-    setHasApproval(false);
-    setLastCheckedAmount('0');
-  }, [address]);
-
-  // Recheck allowance when amount changes significantly
-  useEffect(() => {
-    const recheckAllowance = async () => {
-      if (!lastCheckedAmount) return;
-      const currentApproval = await checkAllowance(lastCheckedAmount);
-      setHasApproval(currentApproval);
-    };
-
-    recheckAllowance();
-  }, [checkAllowance, lastCheckedAmount]);
+    fetchAllowance();
+  }, [fetchAllowance]);
 
   return {
-    hasApproval,
-    approveTokens,
+    allowance,
+    approve,
     isApproving,
-    checkAllowance
+    checkAllowance: fetchAllowance
   };
 } 

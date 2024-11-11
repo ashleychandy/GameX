@@ -11,28 +11,36 @@ export class ContractError extends Error {
   }
 }
 
+export const getContractWithSigner = (contract, signer) => {
+  if (!contract || !signer) {
+    throw new ContractError(
+      'Contract or signer not initialized',
+      ERROR_CODES.INITIALIZATION_ERROR
+    );
+  }
+  return contract.connect(signer);
+};
+
 export const executeTransaction = async (transaction, options = {}) => {
-  const { timeout = TRANSACTION_TIMEOUT } = options;
+  const { 
+    timeout = TRANSACTION_TIMEOUT,
+    gasLimit,
+    gasPrice
+  } = options;
 
   try {
     const tx = await Promise.race([
-      transaction(),
+      transaction({
+        ...(gasLimit && { gasLimit }),
+        ...(gasPrice && { gasPrice })
+      }),
       new Promise((_, reject) => 
         setTimeout(() => reject(new Error('Transaction timeout')), timeout)
       )
     ]);
 
     const receipt = await tx.wait();
-    
-    if (!receipt.status) {
-      throw new ContractError(
-        'Transaction failed',
-        ERROR_CODES.CONTRACT_ERROR,
-        { receipt }
-      );
-    }
-
-    return receipt;
+    return validateContractResponse(receipt);
   } catch (error) {
     if (error.code === ERROR_CODES.USER_REJECTED) {
       throw new ContractError(
@@ -49,19 +57,38 @@ export const executeTransaction = async (transaction, options = {}) => {
   }
 };
 
-export const validateGameState = (gameState) => {
-  if (!gameState) return null;
+export const estimateGas = async (contract, method, args = [], options = {}) => {
+  try {
+    const gasEstimate = await contract.estimateGas[method](...args, options);
+    // Add 20% buffer for safety
+    return gasEstimate.mul(120).div(100);
+  } catch (error) {
+    console.error('Gas estimation failed:', error);
+    throw new ContractError(
+      'Failed to estimate gas',
+      ERROR_CODES.GAS_ESTIMATE_ERROR,
+      { method, args, error }
+    );
+  }
+};
 
-  return {
-    isActive: Boolean(gameState.isActive),
-    chosenNumber: gameState.chosenNumber?.toString() || '0',
-    result: gameState.result?.toString() || '0',
-    amount: gameState.amount?.toString() || '0',
-    timestamp: gameState.timestamp?.toString() || '0',
-    payout: gameState.payout?.toString() || '0',
-    randomWord: gameState.randomWord?.toString() || '0',
-    status: Number(gameState.status) || 0
-  };
+export const formatContractError = (error) => {
+  if (error.reason) {
+    return new ContractError(error.reason, ERROR_CODES.CONTRACT_ERROR);
+  }
+
+  if (error.message.includes('user rejected')) {
+    return new ContractError(
+      'Transaction rejected by user',
+      ERROR_CODES.USER_REJECTED
+    );
+  }
+
+  return new ContractError(
+    'Contract interaction failed',
+    ERROR_CODES.CONTRACT_ERROR,
+    { originalError: error }
+  );
 };
 
 export const formatBetHistory = (bet) => {

@@ -1,67 +1,105 @@
-import { useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { ethers } from 'ethers';
-import { toast } from 'react-toastify';
 import { useWallet } from '../contexts/WalletContext';
+import { useTokenApproval } from './useTokenApproval';
 import { handleError } from '../utils/errorHandling';
+import { UI_STATES, TRANSACTION_TIMEOUT } from '../utils/constants';
+import { toast } from 'react-toastify';
 
 export function useContractInteraction() {
-  const { address } = useWallet();
+  const { contract, address } = useWallet();
+  const { approve, allowance } = useTokenApproval(contract?.address);
+  const [uiState, setUiState] = useState(UI_STATES.IDLE);
 
-  const executeTransaction = useCallback(async (contract, method, args = [], options = {}) => {
-    if (!contract || !address) {
-      throw new Error('Contract or wallet not initialized');
-    }
+  const checkAndApproveToken = async (amount) => {
+    const parsedAmount = ethers.parseEther(amount.toString());
+    const currentAllowance = ethers.parseEther(allowance);
 
-    try {
-      const tx = await contract[method](...args, options);
-      const receipt = await tx.wait();
-      
-      if (receipt.status !== 1) {
-        throw new Error('Transaction failed');
+    if (currentAllowance.lt(parsedAmount)) {
+      try {
+        setUiState(UI_STATES.APPROVING);
+        await approve(amount);
+        return true;
+      } catch (error) {
+        const { message } = handleError(error);
+        toast.error(message);
+        return false;
       }
-      
-      return receipt;
-    } catch (error) {
-      const { message } = handleError(error);
-      toast.error(message);
-      throw error;
     }
-  }, [address]);
+    return true;
+  };
 
-  const fetchContractData = useCallback(async (contract, method, args = []) => {
+  const placeBet = useCallback(async (number, amount) => {
     if (!contract || !address) {
-      throw new Error('Contract or wallet not initialized');
+      throw new Error('Contract or wallet not connected');
     }
 
     try {
-      const result = await contract[method](...args);
-      return result;
+      setUiState(UI_STATES.PLACING_BET);
+      
+      const approved = await checkAndApproveToken(amount);
+      if (!approved) {
+        throw new Error('Token approval failed');
+      }
+
+      const tx = await contract.playDice(
+        number, 
+        ethers.parseEther(amount.toString()),
+        { gasLimit: 500000 }
+      );
+
+      setUiState(UI_STATES.WAITING_FOR_RESULT);
+      await tx.wait();
+      
+      return tx;
     } catch (error) {
       const { message } = handleError(error);
-      console.error(`Error fetching ${method}:`, message);
-      throw error;
+      throw new Error(message);
+    } finally {
+      setUiState(UI_STATES.IDLE);
     }
-  }, [address]);
+  }, [contract, address, checkAndApproveToken]);
 
-  const listenForEvents = useCallback((contract, eventName, filter = {}, callback) => {
-    if (!contract) return () => {};
+  const resolveGame = useCallback(async () => {
+    if (!contract || !address) {
+      throw new Error('Contract or wallet not connected');
+    }
 
     try {
-      const eventFilter = contract.filters[eventName](...Object.values(filter));
-      contract.on(eventFilter, callback);
-
-      return () => {
-        contract.off(eventFilter, callback);
-      };
+      setUiState(UI_STATES.RESOLVING);
+      const tx = await contract.resolveGame({ gasLimit: 300000 });
+      await tx.wait();
+      return tx;
     } catch (error) {
-      console.error(`Error setting up ${eventName} listener:`, error);
-      return () => {};
+      const { message } = handleError(error);
+      throw new Error(message);
+    } finally {
+      setUiState(UI_STATES.IDLE);
     }
-  }, []);
+  }, [contract, address]);
+
+  const cancelGame = useCallback(async () => {
+    if (!contract || !address) {
+      throw new Error('Contract or wallet not connected');
+    }
+
+    try {
+      setUiState(UI_STATES.RESOLVING);
+      const tx = await contract.cancelGame({ gasLimit: 200000 });
+      await tx.wait();
+      return tx;
+    } catch (error) {
+      const { message } = handleError(error);
+      throw new Error(message);
+    } finally {
+      setUiState(UI_STATES.IDLE);
+    }
+  }, [contract, address]);
 
   return {
-    executeTransaction,
-    fetchContractData,
-    listenForEvents
+    placeBet,
+    resolveGame,
+    cancelGame,
+    uiState
   };
 } 

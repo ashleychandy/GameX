@@ -15,20 +15,6 @@ export function WalletProvider({ children }) {
   const [balance, setBalance] = useState('0');
   const [isConnecting, setIsConnecting] = useState(false);
 
-  // Auto connect on mount
-  useEffect(() => {
-    const autoConnect = async () => {
-      if (window.ethereum && window.ethereum.selectedAddress) {
-        try {
-          await connectWallet();
-        } catch (error) {
-          console.error('Auto connect failed:', error);
-        }
-      }
-    };
-    autoConnect();
-  }, []);
-
   const updateBalance = useCallback(async () => {
     if (!address || !signer) return;
     
@@ -42,14 +28,13 @@ export function WalletProvider({ children }) {
       setBalance(tokenBalance.toString());
     } catch (error) {
       console.error('Error fetching token balance:', error);
+      toast.error('Failed to fetch token balance');
     }
   }, [address, signer]);
 
   const switchNetwork = async () => {
     try {
-      console.log('Attempting to switch to network:', DEFAULT_NETWORK.chainId);
       const chainIdHex = `0x${DEFAULT_NETWORK.chainId.toString(16)}`;
-      console.log('Chain ID in hex:', chainIdHex);
       
       await window.ethereum.request({
         method: 'wallet_switchEthereumChain',
@@ -57,18 +42,17 @@ export function WalletProvider({ children }) {
       });
       return true;
     } catch (error) {
-      console.log('Switch network error:', error);
       if (error.code === 4902) {
         try {
           await window.ethereum.request({
             method: 'wallet_addEthereumChain',
             params: [{
               chainId: `0x${DEFAULT_NETWORK.chainId.toString(16)}`,
-              chainName: 'Sepolia',
+              chainName: DEFAULT_NETWORK.name,
               nativeCurrency: {
-                name: 'Sepolia ETH',
-                symbol: 'SEP',
-                decimals: 18
+                name: DEFAULT_NETWORK.nativeCurrency.name,
+                symbol: DEFAULT_NETWORK.nativeCurrency.symbol,
+                decimals: DEFAULT_NETWORK.nativeCurrency.decimals
               },
               rpcUrls: [DEFAULT_NETWORK.rpcUrl],
               blockExplorerUrls: [DEFAULT_NETWORK.explorer]
@@ -77,9 +61,12 @@ export function WalletProvider({ children }) {
           return true;
         } catch (addError) {
           console.error('Error adding network:', addError);
+          toast.error('Failed to add network to MetaMask');
           return false;
         }
       }
+      console.error('Error switching network:', error);
+      toast.error('Failed to switch network');
       return false;
     }
   };
@@ -96,38 +83,39 @@ export function WalletProvider({ children }) {
       const provider = new ethers.BrowserProvider(window.ethereum);
       const network = await provider.getNetwork();
       
-      console.log('Current network:', network.chainId);
-      console.log('Expected network:', DEFAULT_NETWORK.chainId);
-      
-      // Convert both to numbers for comparison
       const currentChainId = Number(network.chainId);
       const expectedChainId = Number(DEFAULT_NETWORK.chainId);
 
       if (currentChainId !== expectedChainId) {
-        console.log('Network mismatch, attempting to switch...');
         const switched = await switchNetwork();
         if (!switched) {
-          throw new Error('Failed to switch to Sepolia network');
+          throw new Error(`Please switch to ${DEFAULT_NETWORK.name} network`);
         }
         // Get updated provider after network switch
         const updatedProvider = new ethers.BrowserProvider(window.ethereum);
         const updatedNetwork = await updatedProvider.getNetwork();
         if (Number(updatedNetwork.chainId) !== expectedChainId) {
-          throw new Error('Please connect to Sepolia network');
+          throw new Error(`Please connect to ${DEFAULT_NETWORK.name} network`);
         }
       }
 
-      await window.ethereum.request({ method: 'eth_requestAccounts' });
+      const accounts = await window.ethereum.request({ 
+        method: 'eth_requestAccounts' 
+      });
+      
+      if (!accounts || accounts.length === 0) {
+        throw new Error('No accounts found');
+      }
+
       const signer = await provider.getSigner();
-      const address = await signer.getAddress();
+      const address = accounts[0];
 
       setProvider(provider);
       setSigner(signer);
       setAddress(address);
       setChainId(currentChainId);
 
-      // Initial balance update
-      updateBalance();
+      await updateBalance();
       
       toast.success('Wallet connected successfully!');
 
@@ -183,13 +171,20 @@ export function WalletProvider({ children }) {
     return () => clearInterval(interval);
   }, [address, updateBalance]);
 
-  const contextValue = {
+  // Network comparison (fix for bigint comparison)
+  const isCorrectNetwork = useCallback(() => {
+    // Convert both to numbers for comparison
+    const currentChainId = Number(chainId);
+    const expectedChainId = Number(DEFAULT_NETWORK.chainId);
+    return currentChainId === expectedChainId;
+  }, [chainId]);
+
+  const value = {
     provider,
     signer,
     address,
     chainId,
     balance,
-    isConnected: !!address,
     isConnecting,
     connectWallet,
     disconnectWallet,
@@ -197,7 +192,7 @@ export function WalletProvider({ children }) {
   };
 
   return (
-    <WalletContext.Provider value={contextValue}>
+    <WalletContext.Provider value={value}>
       {children}
     </WalletContext.Provider>
   );
@@ -210,4 +205,5 @@ export const useWallet = () => {
   }
   return context;
 };
+
 

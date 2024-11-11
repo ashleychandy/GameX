@@ -3,7 +3,7 @@ import { DiceGame } from '../../components/game/DiceGame';
 import { useWallet } from '../../contexts/WalletContext';
 import { WalletPrompt } from '../../components/common/WalletPrompt';
 
-export function DiceGamePage() {
+const DiceGamePage = () => {
   const { isConnected } = useWallet();
 
   if (!isConnected) {
@@ -11,6 +11,6 @@ export function DiceGamePage() {
   }
 
   return <DiceGame />;
-}
+};
 
 export default DiceGamePage; 

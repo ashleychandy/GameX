@@ -2,100 +2,92 @@ import { useState, useEffect, useCallback } from 'react';
 import { ethers } from 'ethers';
 import { toast } from 'react-toastify';
 import { handleError } from '../utils/errorHandling';
-import { contracts } from '../config';
-import TokenABI from '../abi/Token.json';
+import { contracts, network } from '../config';
+import { CHAIN_IDS } from '../utils/constants';
 
 export function useWallet() {
-  const [address, setAddress] = useState(null);
   const [provider, setProvider] = useState(null);
+  const [signer, setSigner] = useState(null);
+  const [address, setAddress] = useState('');
+  const [chainId, setChainId] = useState(null);
   const [balance, setBalance] = useState('0');
   const [isConnecting, setIsConnecting] = useState(false);
-  const [tokenContract, setTokenContract] = useState(null);
-
-  // Initialize provider and contracts
-  useEffect(() => {
-    if (window.ethereum) {
-      const provider = new ethers.BrowserProvider(window.ethereum);
-      setProvider(provider);
-
-      // Initialize token contract
-      const tokenContract = new ethers.Contract(
-        contracts.token.address,
-        TokenABI.abi,
-        provider
-      );
-      setTokenContract(tokenContract);
-    }
-  }, []);
-
-  // Update balance when address changes
-  useEffect(() => {
-    const fetchBalance = async () => {
-      if (tokenContract && address) {
-        try {
-          const balance = await tokenContract.balanceOf(address);
-          setBalance(balance.toString());
-        } catch (error) {
-          console.error('Error fetching token balance:', error);
-        }
-      }
-    };
-
-    fetchBalance();
-    
-    // Set up event listener for balance changes
-    if (tokenContract && address) {
-      const filterFrom = tokenContract.filters.Transfer(address, null);
-      const filterTo = tokenContract.filters.Transfer(null, address);
-      
-      tokenContract.on(filterFrom, fetchBalance);
-      tokenContract.on(filterTo, fetchBalance);
-      
-      return () => {
-        tokenContract.off(filterFrom, fetchBalance);
-        tokenContract.off(filterTo, fetchBalance);
-      };
-    }
-  }, [address, tokenContract]);
 
   const connectWallet = useCallback(async () => {
     if (!window.ethereum) {
-      toast.error('Please install MetaMask to connect wallet');
-      return;
+      toast.error('Please install MetaMask to use this application');
+      return false;
     }
 
     try {
       setIsConnecting(true);
-      const accounts = await window.ethereum.request({
-        method: 'eth_requestAccounts'
-      });
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const network = await provider.getNetwork();
       
-      setAddress(accounts[0]);
-      toast.success('Wallet connected successfully');
+      if (network.chainId !== CHAIN_IDS.SEPOLIA) {
+        await window.ethereum.request({
+          method: 'wallet_switchEthereumChain',
+          params: [{ chainId: `0x${CHAIN_IDS.SEPOLIA.toString(16)}` }],
+        });
+      }
+
+      const signer = await provider.getSigner();
+      const address = await signer.getAddress();
+      const balance = await provider.getBalance(address);
+
+      setProvider(provider);
+      setSigner(signer);
+      setAddress(address);
+      setChainId(network.chainId);
+      setBalance(ethers.formatEther(balance));
+
+      return true;
     } catch (error) {
       const { message } = handleError(error);
       toast.error(message);
-      throw error;
+      return false;
     } finally {
       setIsConnecting(false);
     }
   }, []);
 
   const disconnectWallet = useCallback(() => {
-    setAddress(null);
+    setProvider(null);
+    setSigner(null);
+    setAddress('');
+    setChainId(null);
     setBalance('0');
   }, []);
 
-  const isConnected = Boolean(address);
+  useEffect(() => {
+    if (window.ethereum) {
+      window.ethereum.on('accountsChanged', () => {
+        connectWallet();
+      });
+
+      window.ethereum.on('chainChanged', () => {
+        window.location.reload();
+      });
+
+      window.ethereum.on('disconnect', () => {
+        disconnectWallet();
+      });
+
+      return () => {
+        window.ethereum.removeAllListeners();
+      };
+    }
+  }, [connectWallet, disconnectWallet]);
 
   return {
-    address,
-    balance,
-    isConnected,
-    isConnecting,
-    connectWallet,
-    disconnectWallet,
     provider,
-    tokenContract
+    signer,
+    address,
+    chainId,
+    balance,
+    isConnecting,
+    isConnected: Boolean(address),
+    connectWallet,
+    disconnectWallet
   };
 }
