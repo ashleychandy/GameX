@@ -1,67 +1,67 @@
 import React from 'react';
 import styled from 'styled-components';
-import { motion } from 'framer-motion';
-import { formatAmount } from '../../utils/format';
+import { formatEther } from 'ethers';
 
-const StatsContainer = styled(motion.div)`
-  background: ${({ theme }) => theme.surface};
-  border-radius: 16px;
+const StatsContainer = styled.div`
   padding: 1.5rem;
-  margin-bottom: 1.5rem;
+  background: ${({ theme }) => theme.surface2};
+  border-radius: 12px;
 `;
 
-const StatsGrid = styled.div`
+const Title = styled.h3`
+  margin-bottom: 1rem;
+  color: ${({ theme }) => theme.text.primary};
+`;
+
+const StatGrid = styled.div`
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 1rem;
 `;
 
 const StatItem = styled.div`
   text-align: center;
-  
-  span {
-    display: block;
-    font-size: 0.875rem;
-    color: ${({ theme }) => theme.text.secondary};
-    margin-bottom: 0.25rem;
-  }
-  
-  strong {
-    font-size: 1.25rem;
-    color: ${({ theme }) => theme.text.primary};
-  }
+  padding: 1rem;
+  background: ${({ theme }) => theme.surface3};
+  border-radius: 8px;
 `;
 
-export function UserStats({ userData }) {
-  if (!userData) return null;
+const StatLabel = styled.div`
+  font-size: 0.875rem;
+  color: ${({ theme }) => theme.text.secondary};
+  margin-bottom: 0.5rem;
+`;
+
+const StatValue = styled.div`
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: ${({ theme }) => theme.text.primary};
+`;
+
+export function UserStats({ stats }) {
+  if (!stats) return null;
 
   return (
-    <StatsContainer
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-    >
-      <h3>Your Stats</h3>
-      <StatsGrid>
+    <StatsContainer>
+      <Title>Your Stats</Title>
+      <StatGrid>
         <StatItem>
-          <span>Total Games</span>
-          <strong>{userData.totalGames.toString()}</strong>
+          <StatLabel>Total Games</StatLabel>
+          <StatValue>{stats.totalGames}</StatValue>
         </StatItem>
         <StatItem>
-          <span>Win Rate</span>
-          <strong>{userData.totalGames > 0 ? 
-            `${(userData.totalGamesWon / userData.totalGames * 100).toFixed(1)}%` : 
-            '0%'}
-          </strong>
+          <StatLabel>Win Rate</StatLabel>
+          <StatValue>{stats.winRate}%</StatValue>
         </StatItem>
         <StatItem>
-          <span>Total Winnings</span>
-          <strong>{formatAmount(userData.totalWinnings)} GAMEX</strong>
+          <StatLabel>Total Winnings</StatLabel>
+          <StatValue>{formatEther(stats.totalWinnings)} DICE</StatValue>
         </StatItem>
         <StatItem>
-          <span>Total Losses</span>
-          <strong>{formatAmount(userData.totalLosses)} GAMEX</strong>
+          <StatLabel>Average Bet</StatLabel>
+          <StatValue>{formatEther(stats.averageBet)} DICE</StatValue>
         </StatItem>
-      </StatsGrid>
+      </StatGrid>
     </StatsContainer>
   );
 } 

@@ -123,22 +123,17 @@ export const createCSSVariables = (theme) => {
 export { themeConfig, baseTheme };
 
 export const theme = {
-  colors: {
-    primary: '#6C5CE7',
-    secondary: '#A8A4FF',
-    cardBackground: 'rgba(255, 255, 255, 0.05)',
-    backgroundAlt: 'rgba(255, 255, 255, 0.02)',
-    error: '#FF6B6B',
-    success: '#51CF66'
-  },
-  gradients: {
-    primary: 'linear-gradient(45deg, #6C5CE7, #A8A4FF)'
-  },
+  primary: '#6366f1',
+  surface: '#1f2937',
+  surface2: '#374151',
+  surface3: '#4b5563',
+  border: '#6b7280',
   text: {
-    primary: '#FFFFFF',
-    secondary: 'rgba(255, 255, 255, 0.7)'
+    primary: '#f3f4f6',
+    secondary: '#9ca3af',
+    inverse: '#ffffff'
   },
-  shadows: {
-    card: '0 8px 32px rgba(0, 0, 0, 0.1)'
-  }
+  success: '#10b981',
+  warning: '#f59e0b',
+  error: '#ef4444'
 }; 

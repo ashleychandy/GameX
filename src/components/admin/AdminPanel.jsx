@@ -7,7 +7,9 @@ import { Button } from '../common/Button';
 import { Input } from '../common/Input';
 import { useWallet } from '../../contexts/WalletContext';
 import { useAdmin } from '../../hooks/useAdmin';
+import { useContractState } from '../../hooks/useContractState';
 import { handleError } from '../../utils/errorHandling';
+import { Loading } from '../common/Loading';
 
 const AdminContainer = styled(motion.div)`
   max-width: 1200px;
@@ -44,6 +46,7 @@ const ActionCard = styled.div`
   h3 {
     margin-bottom: 1rem;
     font-size: 1.1rem;
+    color: ${({ theme }) => theme.text.primary};
   }
 
   .input-group {
@@ -61,8 +64,45 @@ const InputGroup = styled.div`
   }
 `;
 
+const StatsDisplay = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+  padding: 1rem;
+  background: ${({ theme }) => theme.background};
+  border-radius: 12px;
+`;
+
+const StatItem = styled.div`
+  text-align: center;
+  padding: 1rem;
+  
+  h4 {
+    color: ${({ theme }) => theme.text.secondary};
+    margin-bottom: 0.5rem;
+  }
+  
+  p {
+    font-size: 1.25rem;
+    font-weight: bold;
+    color: ${({ theme }) => theme.text.primary};
+  }
+`;
+
+const Select = styled.select`
+  width: 100%;
+  padding: 0.5rem;
+  border-radius: 8px;
+  border: 1px solid ${({ theme }) => theme.border};
+  background: ${({ theme }) => theme.background};
+  color: ${({ theme }) => theme.text.primary};
+  margin-bottom: 1rem;
+`;
+
 export function AdminPanel() {
   const { isConnected, isAdmin } = useWallet();
+  const { state: contractState } = useContractState();
   const {
     mintTokens,
     setHouseEdge,
@@ -74,6 +114,8 @@ export function AdminPanel() {
     setCoordinator,
     revokeTokenRole,
     grantTokenRole,
+    setMinBet,
+    setMaxBet,
     isLoading,
     error
   } = useAdmin();
@@ -88,15 +130,50 @@ export function AdminPanel() {
     coordinatorAddress: '',
     revokeAddress: '',
     grantAddress: '',
-    roleType: 'MINTER_ROLE'
+    roleType: 'MINTER_ROLE',
+    minBet: '',
+    maxBet: ''
   });
 
   const handleInputChange = (name, value) => {
     setInputs(prev => ({ ...prev, [name]: value }));
   };
 
+  const validateInput = (name, value) => {
+    switch (name) {
+      case 'mintAmount':
+      case 'withdrawAmount':
+      case 'minBet':
+      case 'maxBet':
+        if (value <= 0) return 'Amount must be greater than 0';
+        break;
+      case 'houseEdge':
+        if (value < 0 || value > 100) return 'House edge must be between 0 and 100';
+        break;
+      case 'mintAddress':
+      case 'grantAddress':
+      case 'coordinatorAddress':
+        if (!ethers.isAddress(value)) return 'Invalid address';
+        break;
+      case 'callbackGasLimit':
+        if (value < 100000) return 'Gas limit too low';
+        break;
+      default:
+        return null;
+    }
+    return null;
+  };
+
   const handleAction = async (action, ...args) => {
     try {
+      // Validate all arguments
+      const errors = args.map((arg, index) => validateInput(Object.keys(inputs)[index], arg));
+      const error = errors.find(e => e !== null);
+      if (error) {
+        toast.error(error);
+        return;
+      }
+
       await action(...args);
       toast.success('Action completed successfully!');
     } catch (error) {
@@ -116,12 +193,48 @@ export function AdminPanel() {
     );
   }
 
+  if (isLoading) {
+    return (
+      <AdminContainer>
+        <Loading message="Loading admin panel..." />
+      </AdminContainer>
+    );
+  }
+
   return (
     <AdminContainer
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.3 }}
     >
+      {/* Contract Stats Section */}
+      <AdminSection>
+        <h2>Contract Statistics</h2>
+        <StatsDisplay>
+          <StatItem>
+            <h4>Contract Balance</h4>
+            <p>{ethers.formatEther(contractState.balance || '0')} GAMEX</p>
+          </StatItem>
+          <StatItem>
+            <h4>Game Status</h4>
+            <p>{contractState.paused ? 'Paused' : 'Active'}</p>
+          </StatItem>
+          <StatItem>
+            <h4>House Edge</h4>
+            <p>{ethers.formatEther(contractState.houseEdge || '0')}%</p>
+          </StatItem>
+          <StatItem>
+            <h4>Min Bet</h4>
+            <p>{ethers.formatEther(contractState.minBet || '0')} GAMEX</p>
+          </StatItem>
+          <StatItem>
+            <h4>Max Bet</h4>
+            <p>{ethers.formatEther(contractState.maxBet || '0')} GAMEX</p>
+          </StatItem>
+        </StatsDisplay>
+      </AdminSection>
+
+      {/* Token Management Section */}
       <AdminSection>
         <h2>Token Management</h2>
         <ActionGrid>
@@ -162,16 +275,14 @@ export function AdminPanel() {
                 placeholder="0x..."
               />
             </InputGroup>
-            <InputGroup>
-              <select
-                value={inputs.roleType}
-                onChange={(e) => handleInputChange('roleType', e.target.value)}
-                style={{ width: '100%', padding: '0.5rem' }}
-              >
-                <option value="MINTER_ROLE">Minter Role</option>
-                <option value="BURNER_ROLE">Burner Role</option>
-              </select>
-            </InputGroup>
+            <Select
+              value={inputs.roleType}
+              onChange={(e) => handleInputChange('roleType', e.target.value)}
+            >
+              <option value="DEFAULT_ADMIN_ROLE">Admin Role</option>
+              <option value="MINTER_ROLE">Minter Role</option>
+              <option value="BURNER_ROLE">Burner Role</option>
+            </Select>
             <Button
               onClick={() => handleAction(grantTokenRole, inputs.roleType, inputs.grantAddress)}
               disabled={isLoading}
@@ -190,6 +301,7 @@ export function AdminPanel() {
         </ActionGrid>
       </AdminSection>
 
+      {/* Game Configuration Section */}
       <AdminSection>
         <h2>Game Configuration</h2>
         <ActionGrid>
@@ -213,6 +325,41 @@ export function AdminPanel() {
           </ActionCard>
 
           <ActionCard>
+            <h3>Bet Limits</h3>
+            <InputGroup>
+              <Input
+                label="Minimum Bet"
+                type="number"
+                value={inputs.minBet}
+                onChange={(e) => handleInputChange('minBet', e.target.value)}
+                placeholder="1"
+              />
+            </InputGroup>
+            <InputGroup>
+              <Input
+                label="Maximum Bet"
+                type="number"
+                value={inputs.maxBet}
+                onChange={(e) => handleInputChange('maxBet', e.target.value)}
+                placeholder="1000"
+              />
+            </InputGroup>
+            <Button
+              onClick={() => handleAction(setMinBet, inputs.minBet)}
+              disabled={isLoading}
+              style={{ marginRight: '1rem' }}
+            >
+              Set Min Bet
+            </Button>
+            <Button
+              onClick={() => handleAction(setMaxBet, inputs.maxBet)}
+              disabled={isLoading}
+            >
+              Set Max Bet
+            </Button>
+          </ActionCard>
+
+          <ActionCard>
             <h3>History Size</h3>
             <InputGroup>
               <Input
@@ -230,12 +377,18 @@ export function AdminPanel() {
               Update History Size
             </Button>
           </ActionCard>
+        </ActionGrid>
+      </AdminSection>
 
+      {/* VRF Configuration Section */}
+      <AdminSection>
+        <h2>VRF Configuration</h2>
+        <ActionGrid>
           <ActionCard>
-            <h3>VRF Configuration</h3>
+            <h3>Callback Gas Limit</h3>
             <InputGroup>
               <Input
-                label="Callback Gas Limit"
+                label="Gas Limit"
                 type="number"
                 value={inputs.callbackGasLimit}
                 onChange={(e) => handleInputChange('callbackGasLimit', e.target.value)}
@@ -270,8 +423,9 @@ export function AdminPanel() {
         </ActionGrid>
       </AdminSection>
 
+      {/* Emergency Controls Section */}
       <AdminSection>
-        <h2>Game Controls</h2>
+        <h2>Emergency Controls</h2>
         <ActionGrid>
           <ActionCard>
             <h3>Game State</h3>

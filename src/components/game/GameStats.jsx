@@ -2,6 +2,7 @@ import React from 'react';
 import styled from 'styled-components';
 import { motion } from 'framer-motion';
 import { formatAmount } from '../../utils/helpers';
+import ethers from 'ethers';
 
 const StatsContainer = styled(motion.div)`
   padding: 1.5rem;
@@ -38,13 +39,24 @@ export function GameStats({ stats }) {
   if (!stats) return null;
 
   const formatWinRate = (rate) => {
-    if (!rate || isNaN(rate)) return '0.00';
-    return (Number(rate) / 100).toFixed(2);
+    try {
+      if (!rate || isNaN(rate)) return '0.00';
+      // Convert from basis points (10000 = 100%) to percentage
+      return (Number(rate) / 100).toFixed(2);
+    } catch (error) {
+      console.error('Error formatting win rate:', error);
+      return '0.00';
+    }
   };
 
   const formatGameValue = (value) => {
-    if (!value || isNaN(value)) return '0';
-    return Number(value).toString();
+    try {
+      if (!value || isNaN(value)) return '0';
+      return ethers.BigNumber.from(value).toString();
+    } catch (error) {
+      console.error('Error formatting game value:', error);
+      return '0';
+    }
   };
 
   const statItems = [

@@ -1,84 +1,90 @@
-import React, { useState, useCallback } from 'react';
-import styled from 'styled-components';
-import { motion } from 'framer-motion';
-import { toast } from 'react-toastify';
+import React, { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
+import styled from 'styled-components';
+import { toast } from 'react-toastify';
 import { useWallet } from '../../contexts/WalletContext';
 import { useGame } from '../../hooks/useGame';
 import { useContractState } from '../../hooks/useContractState';
-import { useContractInteraction } from '../../hooks/useContractInteraction';
 import { DiceSelector } from './DiceSelector';
 import { BetInput } from './BetInput';
 import { GameStatus } from './GameStatus';
-import { Button } from '../common/Button';
-import { Loading } from '../common/Loading';
-import { formatAmount, calculateMaxBet } from '../../utils/format';
-import { UI_STATES, GAME_STATUS } from '../../utils/constants';
-import { debounce } from 'lodash';
+import { GameHistory } from './GameHistory';
+import { UserStats } from './UserStats';
+import { calculateMaxBet } from '../../utils/format';
 
-const GameContainer = styled(motion.div)`
-  max-width: 800px;
+const GameContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+  max-width: 1200px;
   margin: 0 auto;
   padding: 2rem;
-  background: ${({ theme }) => theme.surface};
-  border-radius: 24px;
-  box-shadow: ${({ theme }) => theme.shadow.lg};
 `;
 
-const Controls = styled.div`
+const GameControls = styled.div`
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
-  margin-top: 2rem;
-`;
-
-const ActionButtons = styled.div`
-  display: flex;
-  gap: 1rem;
-  justify-content: center;
-  margin-top: 1rem;
-  flex-wrap: wrap;
-`;
-
-const AdminControls = styled.div`
-  margin-top: 2rem;
-  padding-top: 1rem;
-  border-top: 1px solid ${({ theme }) => theme.border};
-`;
-
-const StatsContainer = styled.div`
-  margin-top: 1rem;
-  padding: 1rem;
+  padding: 2rem;
   background: ${({ theme }) => theme.surface2};
   border-radius: 12px;
 `;
 
+const ButtonGroup = styled.div`
+  display: flex;
+  gap: 1rem;
+  margin-top: 1rem;
+`;
+
+const Button = styled.button`
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  border: none;
+  background: ${({ theme, $variant }) => 
+    $variant === 'primary' ? theme.primary : theme.surface3};
+  color: ${({ theme }) => theme.text.primary};
+  font-weight: 600;
+  cursor: ${({ disabled }) => disabled ? 'not-allowed' : 'pointer'};
+  opacity: ${({ disabled }) => disabled ? 0.5 : 1};
+  transition: all 0.2s ease;
+
+  &:hover:not(:disabled) {
+    transform: translateY(-2px);
+    opacity: 0.9;
+  }
+`;
+
+const StatsContainer = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1rem;
+  margin-top: 2rem;
+`;
+
 export function DiceGame() {
-  const { address, isAdmin } = useWallet();
+  const { address } = useWallet();
   const { 
     gameData, 
     previousBets, 
-    pendingRequest, 
-    refreshGameState,
+    pendingRequest,
     userData,
     requestDetails,
-    canStart 
+    canStart,
+    loadingStates,
+    placeBet,
+    resolveGame,
+    recoverStuckGame,
+    refreshGameState
   } = useGame();
   const { state: contractState } = useContractState();
-  const { 
-    playDice, 
-    resolveGame, 
-    recoverStuckGame,
-    forceStopGame,
-    pause,
-    unpause,
-    uiState 
-  } = useContractInteraction();
   
   const [selectedNumber, setSelectedNumber] = useState(1);
   const [betAmount, setBetAmount] = useState('');
 
   const maxBet = calculateMaxBet(ethers.BigNumber.from(contractState.contractBalance));
+  const isGameActive = gameData?.isActive;
+  const isPending = pendingRequest || loadingStates.placingBet;
+  const canPlay = !isGameActive && !contractState.paused && canStart && !isPending;
 
   const handlePlay = async () => {
     if (!address) {
@@ -86,10 +92,13 @@ export function DiceGame() {
       return;
     }
 
+    if (!betAmount || parseFloat(betAmount) <= 0) {
+      toast.error('Please enter a valid bet amount');
+      return;
+    }
+
     try {
-      const amount = ethers.parseEther(betAmount);
-      await playDice(selectedNumber, amount);
-      refreshGameState();
+      await placeBet(selectedNumber, betAmount);
     } catch (error) {
       toast.error(error.message);
     }
@@ -98,161 +107,88 @@ export function DiceGame() {
   const handleResolve = async () => {
     try {
       await resolveGame();
-      refreshGameState();
     } catch (error) {
       toast.error(error.message);
     }
   };
 
-  const handleRecoverGame = async () => {
+  const handleRecover = async () => {
     try {
-      await recoverStuckGame(address);
-      refreshGameState();
-      toast.success('Game recovered successfully');
+      await recoverStuckGame();
     } catch (error) {
       toast.error(error.message);
     }
   };
 
-  const handleForceStop = async () => {
-    try {
-      await forceStopGame(address);
-      refreshGameState();
-      toast.success('Game stopped successfully');
-    } catch (error) {
-      toast.error(error.message);
+  // Auto-refresh game state when needed
+  useEffect(() => {
+    if (isGameActive || pendingRequest) {
+      const interval = setInterval(refreshGameState, 5000);
+      return () => clearInterval(interval);
     }
-  };
-
-  const handlePause = async () => {
-    try {
-      await pause();
-      refreshGameState();
-      toast.success('Contract paused successfully');
-    } catch (error) {
-      toast.error(error.message);
-    }
-  };
-
-  const handleUnpause = async () => {
-    try {
-      await unpause();
-      refreshGameState();
-      toast.success('Contract unpaused successfully');
-    } catch (error) {
-      toast.error(error.message);
-    }
-  };
-
-  const isGameActive = gameData?.isActive;
-  const canPlay = !isGameActive && !pendingRequest && !contractState.paused && canStart;
-  const canResolve = isGameActive && gameData?.status === GAME_STATUS.READY_TO_RESOLVE;
-  const showRecoverOption = isGameActive && gameData?.status === GAME_STATUS.STUCK;
-
-  // Add memoization for expensive calculations and child components
-  const MemoizedDiceSelector = React.memo(DiceSelector);
-  const MemoizedGameStatus = React.memo(GameStatus);
-
-  const handleBetChange = debounce((value) => {
-    // Handle bet amount change
-  }, 300);
+  }, [isGameActive, pendingRequest, refreshGameState]);
 
   return (
     <GameContainer>
-      <MemoizedGameStatus 
+      <GameStatus 
         gameData={gameData}
-        pendingRequest={pendingRequest}
-        previousBets={previousBets}
-        userData={userData}
+        contractState={contractState}
         requestDetails={requestDetails}
+        pendingRequest={pendingRequest}
       />
-      
-      <Controls>
-        <MemoizedDiceSelector 
+
+      <GameControls>
+        <DiceSelector 
+          selectedNumber={selectedNumber}
+          onSelect={setSelectedNumber}
           disabled={!canPlay}
-          value={selectedNumber}
-          onChange={setSelectedNumber}
         />
-        
+
         <BetInput
-          disabled={!canPlay}
           value={betAmount}
           onChange={setBetAmount}
-          maxBet={formatAmount(maxBet)}
+          maxBet={maxBet}
+          disabled={!canPlay}
         />
-        
-        <ActionButtons>
-          {canPlay && (
-            <Button 
-              primary
-              disabled={uiState !== UI_STATES.IDLE}
-              onClick={handlePlay}
-            >
-              {uiState === UI_STATES.PLAYING ? <Loading /> : 'Roll Dice'}
-            </Button>
-          )}
-          
-          {canResolve && (
+
+        <ButtonGroup>
+          <Button
+            $variant="primary"
+            disabled={!canPlay}
+            onClick={handlePlay}
+          >
+            {loadingStates.placingBet ? 'Placing Bet...' : 'Play'}
+          </Button>
+
+          {isGameActive && (
             <Button
-              secondary
-              disabled={uiState !== UI_STATES.IDLE}
+              disabled={loadingStates.resolvingGame}
               onClick={handleResolve}
             >
-              {uiState === UI_STATES.RESOLVING ? <Loading /> : 'Resolve Game'}
+              {loadingStates.resolvingGame ? 'Resolving...' : 'Resolve Game'}
             </Button>
           )}
 
-          {showRecoverOption && (
+          {pendingRequest && (
             <Button
-              warning
-              disabled={uiState !== UI_STATES.IDLE}
-              onClick={handleRecoverGame}
+              disabled={loadingStates.recoveringGame}
+              onClick={handleRecover}
             >
-              Recover Game
+              {loadingStates.recoveringGame ? 'Recovering...' : 'Recover Game'}
             </Button>
           )}
-        </ActionButtons>
-      </Controls>
-
-      {isAdmin && (
-        <AdminControls>
-          <h3>Admin Controls</h3>
-          <ActionButtons>
-            <Button
-              danger
-              onClick={handleForceStop}
-              disabled={uiState !== UI_STATES.IDLE}
-            >
-              Force Stop Game
-            </Button>
-            
-            {contractState.paused ? (
-              <Button
-                success
-                onClick={handleUnpause}
-                disabled={uiState !== UI_STATES.IDLE}
-              >
-                Unpause Contract
-              </Button>
-            ) : (
-              <Button
-                warning
-                onClick={handlePause}
-                disabled={uiState !== UI_STATES.IDLE}
-              >
-                Pause Contract
-              </Button>
-            )}
-          </ActionButtons>
-        </AdminControls>
-      )}
+        </ButtonGroup>
+      </GameControls>
 
       <StatsContainer>
-        <h3>Player Stats</h3>
-        <div>Win Rate: {contractState.playerStats.winRate}%</div>
-        <div>Average Bet: {formatAmount(contractState.playerStats.averageBet)} Tokens</div>
-        <div>Total Games Won: {contractState.playerStats.totalGamesWon}</div>
-        <div>Total Games Lost: {contractState.playerStats.totalGamesLost}</div>
+        <UserStats 
+          stats={userData}
+          previousBets={previousBets}
+        />
+        <GameHistory 
+          bets={previousBets}
+          address={address}
+        />
       </StatsContainer>
     </GameContainer>
   );

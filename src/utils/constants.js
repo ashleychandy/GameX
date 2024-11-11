@@ -124,8 +124,8 @@ export const TRANSACTION_TIMEOUT = 30000; // 30 seconds
 // Roles
 export const ROLES = {
   DEFAULT_ADMIN_ROLE: '0x0000000000000000000000000000000000000000000000000000000000000000',
-  MINTER_ROLE: import.meta.env.MINTER_ADDRESS,
-  BURNER_ROLE: import.meta.env.BURNER_ADDRESS
+  MINTER_ROLE: ethers.keccak256(ethers.toUtf8Bytes("MINTER_ROLE")),
+  BURNER_ROLE: ethers.keccak256(ethers.toUtf8Bytes("BURNER_ROLE"))
 };
 
 // Transaction Types
@@ -136,11 +136,10 @@ export const TRANSACTION_TYPES = {
 };
 
 export const GAME_STATUS = {
-  PENDING: 0,
-  STARTED: 1,
-  COMPLETED_WIN: 2,
-  COMPLETED_LOSS: 3,
-  CANCELLED: 4
+  IDLE: 0,
+  ACTIVE: 1,
+  COMPLETED: 2,
+  CANCELLED: 3
 };
 
 export const GAME_ERROR_MESSAGES = {
@@ -154,13 +153,9 @@ export const GAME_ERROR_MESSAGES = {
 // Add this to constants.js
 export const UI_STATES = {
   IDLE: 'idle',
-  PLAYING: 'playing',
-  RESOLVING: 'resolving',
-  RECOVERING: 'recovering',
-  FORCE_STOPPING: 'forceStoping',
-  PAUSING: 'pausing',
-  UNPAUSING: 'unpausing',
   APPROVING: 'approving',
   PLACING_BET: 'placingBet',
-  WAITING_FOR_RESULT: 'waitingForResult'
+  WAITING_FOR_RESULT: 'waitingForResult',
+  RESOLVING: 'resolving',
+  CLAIMING: 'claiming'
 };

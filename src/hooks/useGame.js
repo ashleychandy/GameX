@@ -5,12 +5,13 @@ import { useWallet } from '../contexts/WalletContext';
 import { useTokenApproval } from './useTokenApproval';
 import { gameConfig } from '../config';
 import { UI_STATES, GAME_STATUS } from '../utils/constants';
-import { handleError } from '../utils/errorHandling';
+import { handleError, handleContractError } from '../utils/errorHandling';
 import { useContract } from './useContract';
 
 export function useGame() {
-  const { address } = useWallet();
-  const { contract } = useContract('dice');
+  const { contract, address } = useWallet();
+  const { checkAndApproveToken } = useTokenApproval();
+  
   const [gameData, setGameData] = useState(null);
   const [previousBets, setPreviousBets] = useState([]);
   const [pendingRequest, setPendingRequest] = useState(false);
@@ -22,7 +23,10 @@ export function useGame() {
   const [loadingStates, setLoadingStates] = useState({
     gameData: false,
     betsHistory: false,
-    userData: false
+    userData: false,
+    placingBet: false,
+    cancellingGame: false,
+    claimingPrize: false
   });
   const [isOnline, setIsOnline] = useState(navigator.onLine);
 
@@ -42,25 +46,56 @@ export function useGame() {
         setIsLoading(true);
         setError(null);
 
+        let currentGame;
+        try {
+          currentGame = await contract.getCurrentGame(address);
+        } catch (error) {
+          console.error('Error fetching current game:', error);
+          currentGame = {
+            isActive: false,
+            chosenNumber: ethers.BigNumber.from(0),
+            result: ethers.BigNumber.from(0),
+            amount: ethers.BigNumber.from(0),
+            timestamp: ethers.BigNumber.from(0),
+            payout: ethers.BigNumber.from(0),
+            randomWord: ethers.BigNumber.from(0),
+            status: 0
+          };
+        }
+
         const [
-          currentGame,
           betsHistory,
-          userDataResult,
+          userData,
           requestInfo,
           canStartNew,
-          hasPending
+          hasPending,
+          playerStats
         ] = await Promise.all([
-          contract.getCurrentGame(address),
-          contract.getPreviousBets(address),
-          contract.getUserData(address),
-          contract.getCurrentRequestDetails(address),
-          contract.canStartNewGame(address),
-          contract.hasPendingRequest(address)
+          contract.getPreviousBets(address).catch(() => []),
+          contract.getUserData(address).catch(() => ({
+            totalGames: ethers.BigNumber.from(0),
+            totalBets: ethers.BigNumber.from(0),
+            totalWinnings: ethers.BigNumber.from(0),
+            totalLosses: ethers.BigNumber.from(0),
+            lastPlayed: ethers.BigNumber.from(0)
+          })),
+          contract.getCurrentRequestDetails(address).catch(() => ({
+            requestId: ethers.BigNumber.from(0),
+            requestFulfilled: false,
+            requestActive: false
+          })),
+          contract.canStartNewGame(address).catch(() => false),
+          contract.hasPendingRequest(address).catch(() => false),
+          contract.getPlayerStats(address).catch(() => ({
+            winRate: ethers.BigNumber.from(0),
+            averageBet: ethers.BigNumber.from(0),
+            totalGamesWon: ethers.BigNumber.from(0),
+            totalGamesLost: ethers.BigNumber.from(0)
+          }))
         ]);
 
-        // Transform game data
         const gameState = {
-          isActive: currentGame.isActive,
+          isActive: Boolean(currentGame.isActive),
           chosenNumber: currentGame.chosenNumber.toString(),
           result: currentGame.result.toString(),
           amount: currentGame.amount.toString(),
@@ -70,23 +105,24 @@ export function useGame() {
           status: currentGame.status
         };
 
-        // Transform user data
         const transformedUserData = {
-          totalGames: userDataResult.totalGames.toString(),
-          totalBets: userDataResult.totalBets.toString(),
-          totalWinnings: userDataResult.totalWinnings.toString(),
-          totalLosses: userDataResult.totalLosses.toString(),
-          lastPlayed: userDataResult.lastPlayed.toString()
+          totalGames: userData.totalGames.toString(),
+          totalBets: userData.totalBets.toString(),
+          totalWinnings: userData.totalWinnings.toString(),
+          totalLosses: userData.totalLosses.toString(),
+          lastPlayed: userData.lastPlayed.toString(),
+          winRate: playerStats.winRate.toString(),
+          averageBet: playerStats.averageBet.toString(),
+          totalGamesWon: playerStats.totalGamesWon.toString(),
+          totalGamesLost: playerStats.totalGamesLost.toString()
         };
 
-        // Transform request details
         const transformedRequestDetails = {
           requestId: requestInfo.requestId.toString(),
-          requestFulfilled: requestInfo.requestFulfilled,
-          requestActive: requestInfo.requestActive
+          requestFulfilled: Boolean(requestInfo.requestFulfilled),
+          requestActive: Boolean(requestInfo.requestActive)
         };
 
-        // Transform bet history
         const transformedBets = betsHistory.map(bet => ({
           chosenNumber: bet.chosenNumber.toString(),
           rolledNumber: bet.rolledNumber.toString(),
@@ -100,16 +136,16 @@ export function useGame() {
         setRequestDetails(transformedRequestDetails);
         setCanStart(canStartNew);
         setPendingRequest(hasPending);
-
         break;
       } catch (error) {
+        console.error('Error fetching game state:', error);
         retries--;
         if (retries === 0) {
-          const { message } = handleError(error);
-          setError(message);
-          toast.error('Failed to fetch game state after multiple attempts');
+          setError('Failed to fetch game state');
+          setGameData(null);
         }
-        await new Promise(resolve => setTimeout(resolve, 1000));
+      } finally {
+        setIsLoading(false);
       }
     }
   }, [contract, address]);
@@ -148,6 +184,165 @@ export function useGame() {
     };
   }, []);
 
+  const placeBet = async (number, amount) => {
+    if (!contract || !address) return;
+
+    try {
+      setIsLoading(true);
+      
+      const parsedAmount = ethers.parseEther(amount.toString());
+      
+      if (parsedAmount.lte(0)) {
+        throw new Error('Bet amount must be greater than 0');
+      }
+
+      const tx = await contract.placeBet(number, parsedAmount);
+      await tx.wait();
+      
+      await fetchGameState();
+    } catch (error) {
+      const { message } = handleContractError(error);
+      throw new Error(message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const resolveGame = async () => {
+    if (!contract || !address) return;
+    
+    try {
+      setLoadingStates(prev => ({ ...prev, resolvingGame: true }));
+      
+      const tx = await contract.resolveGame();
+      toast.info('Resolving game... Please wait for confirmation');
+      
+      await tx.wait();
+      toast.success('Game resolved successfully!');
+      
+      await fetchGameState();
+    } catch (error) {
+      const { message } = handleError(error);
+      toast.error(message);
+    } finally {
+      setLoadingStates(prev => ({ ...prev, resolvingGame: false }));
+    }
+  };
+
+  const recoverStuckGame = async () => {
+    if (!contract || !address) return;
+    
+    try {
+      setLoadingStates(prev => ({ ...prev, recoveringGame: true }));
+      
+      const tx = await contract.recoverStuckGame(address);
+      toast.info('Recovering stuck game... Please wait for confirmation');
+      
+      await tx.wait();
+      toast.success('Game recovered successfully!');
+      
+      await fetchGameState();
+    } catch (error) {
+      const { message } = handleError(error);
+      toast.error(message);
+    } finally {
+      setLoadingStates(prev => ({ ...prev, recoveringGame: false }));
+    }
+  };
+
+  const claimPrize = async () => {
+    if (!contract || !address) return;
+    
+    try {
+      setLoadingStates(prev => ({ ...prev, claimingPrize: true }));
+      
+      const tx = await contract.claimPrize();
+      toast.info('Claiming prize... Please wait for confirmation');
+      
+      await tx.wait();
+      toast.success('Prize claimed successfully!');
+      
+      await fetchGameState();
+    } catch (error) {
+      const { message } = handleError(error);
+      toast.error(message);
+    } finally {
+      setLoadingStates(prev => ({ ...prev, claimingPrize: false }));
+    }
+  };
+
+  const getGameStats = async () => {
+    if (!contract) return null;
+    
+    try {
+      const stats = await contract.getGameStats();
+      return {
+        totalGames: stats.totalGames.toString(),
+        totalBets: stats.totalBets.toString(),
+        totalVolume: ethers.utils.formatEther(stats.totalVolume),
+        totalPrizesPaid: ethers.utils.formatEther(stats.totalPrizesPaid)
+      };
+    } catch (error) {
+      const { message } = handleError(error);
+      console.error('Failed to fetch game stats:', message);
+      return null;
+    }
+  };
+
+  const getHouseEdge = async () => {
+    if (!contract) return null;
+    
+    try {
+      const edge = await contract.getHouseEdge();
+      return edge.toString();
+    } catch (error) {
+      console.error('Failed to fetch house edge:', error);
+      return null;
+    }
+  };
+
+  useEffect(() => {
+    if (!contract) return;
+
+    const betPlacedFilter = contract.filters.BetPlaced(address);
+    const gameCompletedFilter = contract.filters.GameCompleted(address);
+    const gameCancelledFilter = contract.filters.GameCancelled(address);
+    const prizeClaimedFilter = contract.filters.PrizeClaimed(address);
+
+    const handleBetPlaced = (player, requestId) => {
+      toast.info(`Bet placed! Request ID: ${requestId}`);
+      fetchGameState();
+    };
+
+    const handleGameCompleted = (player, result, payout) => {
+      const formattedPayout = ethers.utils.formatEther(payout);
+      toast.success(`Game completed! Result: ${result}, Payout: ${formattedPayout} tokens`);
+      fetchGameState();
+    };
+
+    const handleGameCancelled = () => {
+      toast.info('Game cancelled');
+      fetchGameState();
+    };
+
+    const handlePrizeClaimed = (player, amount) => {
+      toast.success(`Prize claimed: ${ethers.utils.formatEther(amount)} tokens`);
+      fetchGameState();
+    };
+
+    contract.on(betPlacedFilter, handleBetPlaced);
+    contract.on(gameCompletedFilter, handleGameCompleted);
+    contract.on(gameCancelledFilter, handleGameCancelled);
+    contract.on(prizeClaimedFilter, handlePrizeClaimed);
+
+    return () => {
+      contract.off(betPlacedFilter, handleBetPlaced);
+      contract.off(gameCompletedFilter, handleGameCompleted);
+      contract.off(gameCancelledFilter, handleGameCancelled);
+      contract.off(prizeClaimedFilter, handlePrizeClaimed);
+    };
+  }, [contract, address]);
+
   return {
     gameData,
     previousBets,
@@ -157,7 +352,17 @@ export function useGame() {
     canStart,
     isLoading,
     error,
-    refreshGameState: fetchGameState
+    refreshGameState: fetchGameState,
+    
+    placeBet,
+    resolveGame,
+    recoverStuckGame,
+    claimPrize,
+    getGameStats,
+    getHouseEdge,
+    
+    loadingStates,
+    isOnline
   };
 }
 

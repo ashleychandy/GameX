@@ -14,11 +14,25 @@ export function useAdmin() {
     try {
       setIsLoading(true);
       setError(null);
+      
+      // Check if contracts are initialized
+      if (!token || !dice) {
+        throw new Error('Contracts not initialized');
+      }
+
       const tx = await operation();
-      toast.info('Transaction submitted...');
-      await tx.wait();
-      toast.success(successMessage);
-      return true;
+      toast.info(`Transaction submitted: ${tx.hash}`);
+      
+      // Wait for confirmation
+      const receipt = await tx.wait();
+      
+      // Check for events/success
+      if (receipt.status === 1) {
+        toast.success(successMessage);
+        return true;
+      } else {
+        throw new Error('Transaction failed');
+      }
     } catch (error) {
       const { message } = handleError(error);
       setError(message);
@@ -111,6 +125,22 @@ export function useAdmin() {
     );
   }, [token]);
 
+  const setMinBet = useCallback(async (amount) => {
+    if (!dice) return;
+    return handleTransaction(
+      () => dice.setMinBet(ethers.parseEther(amount)),
+      `Minimum bet updated to ${amount} GAMEX`
+    );
+  }, [dice]);
+
+  const setMaxBet = useCallback(async (amount) => {
+    if (!dice) return;
+    return handleTransaction(
+      () => dice.setMaxBet(ethers.parseEther(amount)),
+      `Maximum bet updated to ${amount} GAMEX`
+    );
+  }, [dice]);
+
   return {
     isLoading,
     error,
@@ -123,6 +153,8 @@ export function useAdmin() {
     setCallbackGasLimit,
     setCoordinator,
     grantTokenRole,
-    revokeTokenRole
+    revokeTokenRole,
+    setMinBet,
+    setMaxBet
   };
 } 
