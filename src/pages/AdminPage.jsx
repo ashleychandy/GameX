@@ -1,6 +1,9 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { AdminPanel } from '../components/admin/AdminPanel';
+import { useWallet } from '../contexts/WalletContext';
+import { Navigate } from 'react-router-dom';
+import Loading from '../components/common/Loading';
 
 const Container = styled.div`
   max-width: 1200px;
@@ -8,12 +11,43 @@ const Container = styled.div`
   padding: 2rem;
 `;
 
-export function AdminPage() {
+export default function AdminPage() {
+  const { isConnected, isAdmin, address } = useWallet();
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const init = async () => {
+      setIsLoading(true);
+      // Add any additional admin page initialization here
+      setIsLoading(false);
+    };
+
+    if (isConnected && isAdmin) {
+      init();
+    }
+  }, [isConnected, isAdmin]);
+
+  if (!isConnected) {
+    return <Navigate to="/" replace />;
+  }
+
+  if (!isAdmin) {
+    return (
+      <div>
+        <h1>Access Denied</h1>
+        <p>You do not have admin privileges.</p>
+        <p>Current address: {address}</p>
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return <Loading />;
+  }
+
   return (
     <Container>
       <AdminPanel />
     </Container>
   );
-}
-
-export default AdminPage; 
+} 

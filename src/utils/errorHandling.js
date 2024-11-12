@@ -1,4 +1,5 @@
 import { ERROR_CODES, ERROR_MESSAGES } from './constants';
+import { CONFIG } from '../config';
 
 export class AppError extends Error {
   constructor(message, code, details = {}) {
@@ -10,6 +11,22 @@ export class AppError extends Error {
 }
 
 export const handleError = (error) => {
+  // Network errors
+  if (error.code === 'NETWORK_ERROR') {
+    return {
+      message: `Unable to connect to ${CONFIG.network.rpcUrl}`,
+      code: 'NETWORK_ERROR'
+    };
+  }
+
+  // Wrong network
+  if (error.code === 'WRONG_NETWORK') {
+    return {
+      message: `Please switch to ${CONFIG.network.chainId} network`,
+      code: 'WRONG_NETWORK'
+    };
+  }
+
   // Contract-specific errors
   if (error.message.includes('user rejected transaction')) {
     return {
@@ -39,14 +56,6 @@ export const handleError = (error) => {
     };
   }
 
-  // Network errors
-  if (error.message.includes('network error')) {
-    return {
-      message: 'Network error. Please check your connection',
-      code: 'NETWORK_ERROR'
-    };
-  }
-
   // Fallback
   return {
     message: error.message || 'An unknown error occurred',
@@ -60,9 +69,11 @@ export const isUserRejection = (error) => {
 };
 
 export const handleContractError = (error) => {
-  if (error.message.includes('arithmetic underflow or overflow')) {
+  // Check for arithmetic errors
+  if (error.message.includes('arithmetic underflow or overflow') ||
+      error.message.includes('reverted') && error.message.includes('arithmetic')) {
     return {
-      message: 'Invalid amount or calculation error. Please try a different amount.',
+      message: 'Invalid amount. Please check your input values and try again.',
       code: 'ARITHMETIC_ERROR'
     };
   }
@@ -71,6 +82,14 @@ export const handleContractError = (error) => {
     return {
       message: 'Transaction failed. Please check your inputs and try again.',
       code: 'EXECUTION_REVERTED'
+    };
+  }
+
+  // Handle user rejection
+  if (error.code === 4001) {
+    return {
+      message: 'Transaction rejected by user',
+      code: 'USER_REJECTED'
     };
   }
 

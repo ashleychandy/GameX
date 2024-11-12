@@ -1,89 +1,72 @@
-import { useState, useCallback, useEffect } from 'react';
-import { useWallet } from '../contexts/WalletContext';
-import { validateGameData } from '../utils/validation';
-import { getContractEvents } from '../utils/contractInteraction';
-import { GAME_STATUS, POLLING_INTERVAL } from '../utils/constants';
+import { useState, useEffect, useCallback } from 'react';
+import { useWallet } from './useWallet';
 
 export function useGameState() {
-  const { diceContract, address } = useWallet();
+  const { contracts, address } = useWallet();
   const [gameState, setGameState] = useState(null);
-  const [gameHistory, setGameHistory] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
   const fetchGameState = useCallback(async () => {
-    if (!diceContract || !address) return;
+    if (!contracts.dice || !address) {
+      setGameState(null);
+      setIsLoading(false);
+      return;
+    }
 
     try {
-      const data = await diceContract.getGameState(address);
-      const validatedData = validateGameData(data);
-      setGameState(validatedData);
+      setIsLoading(true);
       setError(null);
+
+      const [currentGame, userData, previousBets] = await Promise.all([
+        contracts.dice.getCurrentGame(address),
+        contracts.dice.getUserData(address),
+        contracts.dice.getPreviousBets(address)
+      ]);
+
+      setGameState({
+        currentGame,
+        userData,
+        previousBets,
+        isActive: currentGame.isActive
+      });
     } catch (error) {
-      console.error('Error fetching game state:', error);
+      console.error('Failed to fetch game state:', error);
       setError(error.message);
+    } finally {
+      setIsLoading(false);
     }
-  }, [diceContract, address]);
+  }, [contracts.dice, address]);
 
-  const fetchGameHistory = useCallback(async () => {
-    if (!diceContract || !address) return;
-
-    try {
-      const events = await getContractEvents(
-        diceContract,
-        'GameCompleted',
-        { player: address },
-        -1000 // Last 1000 blocks
-      );
-
-      setGameHistory(events);
-    } catch (error) {
-      console.error('Error fetching game history:', error);
-    }
-  }, [diceContract, address]);
-
-  // Setup polling for active games
+  // Fetch initial state
   useEffect(() => {
-    if (!gameState?.currentGame.isActive) return;
+    fetchGameState();
+  }, [fetchGameState]);
 
-    const interval = setInterval(fetchGameState, POLLING_INTERVAL);
-    return () => clearInterval(interval);
-  }, [gameState?.currentGame.isActive, fetchGameState]);
-
-  // Listen for game events
+  // Setup event listeners
   useEffect(() => {
-    if (!diceContract || !address) return;
+    if (!contracts.dice || !address) return;
 
-    const gameStartedFilter = diceContract.filters.GameStarted(address);
-    const gameCompletedFilter = diceContract.filters.GameCompleted(address);
+    const filters = [
+      contracts.dice.filters.GameStarted(address),
+      contracts.dice.filters.GameResolved(address)
+    ];
 
-    const handleGameEvent = () => {
-      fetchGameState();
-      fetchGameHistory();
-    };
-
-    diceContract.on(gameStartedFilter, handleGameEvent);
-    diceContract.on(gameCompletedFilter, handleGameEvent);
+    filters.forEach(filter => {
+      contracts.dice.on(filter, fetchGameState);
+    });
 
     return () => {
-      diceContract.off(gameStartedFilter, handleGameEvent);
-      diceContract.off(gameCompletedFilter, handleGameEvent);
+      filters.forEach(filter => {
+        contracts.dice.off(filter, fetchGameState);
+      });
     };
-  }, [diceContract, address, fetchGameState, fetchGameHistory]);
-
-  // Initial fetch
-  useEffect(() => {
-    setIsLoading(true);
-    Promise.all([fetchGameState(), fetchGameHistory()])
-      .finally(() => setIsLoading(false));
-  }, [fetchGameState, fetchGameHistory]);
+  }, [contracts.dice, address, fetchGameState]);
 
   return {
     gameState,
-    gameHistory,
     isLoading,
     error,
-    refreshState: fetchGameState,
-    refreshHistory: fetchGameHistory
+    refreshGameState: fetchGameState
   };
 } 

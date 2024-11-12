@@ -19,6 +19,7 @@ export function WalletProvider({ children }) {
   const [diceContract, setDiceContract] = useState(null);
   const [tokenContract, setTokenContract] = useState(null);
   const [chainId, setChainId] = useState(null);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   const resetWalletState = useCallback(() => {
     setIsConnected(false);
@@ -33,22 +34,48 @@ export function WalletProvider({ children }) {
   const initializeContracts = useCallback(async (signer) => {
     try {
       const diceContract = new ethers.Contract(
-        NETWORKS.SEPOLIA.contracts.dice,
+        config.contracts.dice.address,
         DiceABI.abi,
         signer
       );
 
       const tokenContract = new ethers.Contract(
-        NETWORKS.SEPOLIA.contracts.token,
+        config.contracts.token.address,
         TokenABI.abi,
         signer
       );
+
+      const [diceCode, tokenCode] = await Promise.all([
+        provider.getCode(config.contracts.dice.address),
+        provider.getCode(config.contracts.token.address)
+      ]);
+
+      if (diceCode === '0x' || tokenCode === '0x') {
+        throw new Error('Contracts not deployed');
+      }
 
       setDiceContract(diceContract);
       setTokenContract(tokenContract);
     } catch (error) {
       console.error('Contract initialization failed:', error);
       throw error;
+    }
+  }, [provider]);
+
+  const checkAdminStatus = useCallback(async (address, contract) => {
+    if (!address || !contract) {
+      setIsAdmin(false);
+      return;
+    }
+
+    try {
+      const adminRole = await contract.DEFAULT_ADMIN_ROLE();
+      const hasRole = await contract.hasRole(adminRole, address);
+      setIsAdmin(hasRole);
+      console.log('Admin status checked:', { address, hasRole });
+    } catch (error) {
+      console.error('Error checking admin status:', error);
+      setIsAdmin(false);
     }
   }, []);
 
@@ -89,6 +116,8 @@ export function WalletProvider({ children }) {
       
       await initializeContracts(signer);
 
+      await checkAdminStatus(accounts[0], diceContract);
+
       setProvider(provider);
       setSigner(signer);
       setAddress(accounts[0]);
@@ -104,7 +133,7 @@ export function WalletProvider({ children }) {
     } finally {
       setIsConnecting(false);
     }
-  }, [initializeContracts, resetWalletState]);
+  }, [initializeContracts, checkAdminStatus]);
 
   const disconnectWallet = useCallback(() => {
     resetWalletState();
@@ -163,6 +192,7 @@ export function WalletProvider({ children }) {
       value={{
         isConnected,
         isConnecting,
+        isAdmin,
         address,
         provider,
         signer,
@@ -170,7 +200,8 @@ export function WalletProvider({ children }) {
         tokenContract,
         chainId,
         connectWallet,
-        disconnectWallet
+        disconnectWallet,
+        checkAdminStatus
       }}
     >
       {children}

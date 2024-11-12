@@ -1,71 +1,72 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { ethers } from 'ethers';
-import { useWallet } from '../contexts/WalletContext';
-import { handleError } from '../utils/errorHandling';
-import { executeTransaction } from '../utils/contractHelpers';
+import { useWallet } from './useWallet';
+import { executeContractTransaction, executeContractCall } from '../utils/contractHelpers';
 import { toast } from 'react-toastify';
 
 export function useTokenApproval(spenderAddress) {
-  const { tokenContract, address } = useWallet();
+  const { contracts: { token }, address } = useWallet();
   const [allowance, setAllowance] = useState('0');
   const [isApproving, setIsApproving] = useState(false);
 
   const fetchAllowance = useCallback(async () => {
-    if (!tokenContract || !address || !spenderAddress) return;
-
+    if (!token || !address || !spenderAddress) return;
+    
     try {
-      const currentAllowance = await tokenContract.allowance(address, spenderAddress);
-      setAllowance(ethers.formatEther(currentAllowance));
+      const result = await executeContractCall(
+        token,
+        'allowance',
+        [address, spenderAddress]
+      );
+      setAllowance(result.toString());
     } catch (error) {
-      const { message } = handleError(error);
-      console.error('Error fetching allowance:', message);
+      console.error('Failed to fetch allowance:', error);
+      toast.error('Failed to fetch token allowance');
     }
-  }, [tokenContract, address, spenderAddress]);
+  }, [token, address, spenderAddress]);
 
   const checkAndApproveToken = useCallback(async (amount) => {
-    if (!tokenContract || !spenderAddress) {
-      throw new Error('Token contract or spender not initialized');
+    if (!token || !address || !spenderAddress) {
+      throw new Error('Token approval not available');
     }
 
     try {
-      const currentAllowance = ethers.parseEther(allowance);
+      setIsApproving(true);
+      const currentAllowance = ethers.BigNumber.from(allowance);
       const requiredAmount = ethers.parseEther(amount.toString());
 
-      if (currentAllowance.gte(requiredAmount)) {
-        return true;
+      if (currentAllowance.lt(requiredAmount)) {
+        const tx = await executeContractTransaction(
+          token,
+          'approve',
+          [spenderAddress, ethers.constants.MaxUint256]
+        );
+        await tx.wait();
+        await fetchAllowance();
+        toast.success('Token approval successful');
       }
-
-      setIsApproving(true);
-      const tx = await executeTransaction(() =>
-        tokenContract.approve(spenderAddress, requiredAmount)
-      );
-
-      await tx.wait();
-      await fetchAllowance();
-      toast.success('Token approval successful');
       return true;
     } catch (error) {
-      const { message } = handleError(error);
-      toast.error(`Token approval failed: ${message}`);
-      return false;
+      toast.error('Failed to approve token');
+      throw error;
     } finally {
       setIsApproving(false);
     }
-  }, [tokenContract, spenderAddress, allowance, fetchAllowance]);
+  }, [token, address, spenderAddress, allowance, fetchAllowance]);
 
   useEffect(() => {
     fetchAllowance();
     
     // Listen for Approval events
-    if (tokenContract && address && spenderAddress) {
-      const filter = tokenContract.filters.Approval(address, spenderAddress);
-      tokenContract.on(filter, fetchAllowance);
+    if (token && address && spenderAddress) {
+      const filter = token.filters.Approval(address, spenderAddress);
+      token.on(filter, fetchAllowance);
       
       return () => {
-        tokenContract.off(filter, fetchAllowance);
+        token.off(filter, fetchAllowance);
       };
     }
-  }, [tokenContract, address, spenderAddress, fetchAllowance]);
+  }, [token, address, spenderAddress, fetchAllowance]);
 
   return {
     allowance,

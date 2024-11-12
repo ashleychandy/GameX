@@ -1,4 +1,5 @@
 import { ethers } from "ethers";
+import { CONFIG } from '../config';
 
 // Environment variable validation with fallbacks
 const getEnvVar = (name, fallback = "") => {
@@ -11,25 +12,25 @@ const getEnvVar = (name, fallback = "") => {
 
 // Contract Addresses
 export const CONTRACTS = {
-  DICE: import.meta.env.VITE_DICE_GAME_ADDRESS,
-  TOKEN: import.meta.env.VITE_TOKEN_ADDRESS,
+  DICE: CONFIG.contracts.dice.address,
+  TOKEN: CONFIG.contracts.token.address,
 };
 
 // Chain Configuration
 export const CHAIN_CONFIG = {
-  CHAIN_ID: parseInt(getEnvVar("VITE_CHAIN_ID", "11155111")),
-  RPC_URL: getEnvVar("VITE_SEPOLIA_RPC", "https://eth-sepolia.g.alchemy.com/v2/default"),
-  EXPLORER_URL: getEnvVar("VITE_EXPLORER_URL", "https://sepolia.etherscan.io"),
+  CHAIN_ID: CONFIG.network.chainId,
+  RPC_URL: CONFIG.network.rpcUrl,
+  EXPLORER_URL: CONFIG.network.explorerUrl,
 };
 
 // Chainlink VRF Configuration
 export const VRF_CONFIG = {
-  coordinator: import.meta.env.CHAIN_LINK_VRF_COORDINATOR,
-  keyHash: import.meta.env.CHAIN_LINK_KEY_HASH,
-  subscriptionId: import.meta.env.CHAIN_LINK_SUBSCRIPTION_ID,
-  callbackGasLimit: parseInt(import.meta.env.CHAIN_LINK_CALLBACKGASLIMIT),
-  requestConfirmations: parseInt(import.meta.env.CHAIN_LINK_REQUESTCONFIRMATIONS),
-  numWords: parseInt(import.meta.env.CHAIN_LINK_NUMWORDS)
+  coordinator: CONFIG.chainlink.coordinator,
+  keyHash: CONFIG.chainlink.keyHash,
+  subscriptionId: CONFIG.chainlink.subscriptionId,
+  callbackGasLimit: CONFIG.chainlink.callbackGasLimit,
+  requestConfirmations: CONFIG.chainlink.requestConfirmations,
+  numWords: CONFIG.chainlink.numWords
 };
 
 // Game States - matching contract enum
@@ -91,19 +92,19 @@ export const ERROR_CODES = {
 };
 
 // Network Configuration
-export const SUPPORTED_CHAIN_ID = parseInt(import.meta.env.VITE_CHAIN_ID);
+export const SUPPORTED_CHAIN_ID = CONFIG.network.chainId;
 
 // Network Configurations
 export const NETWORKS = {
   SEPOLIA: {
-    chainId: parseInt(import.meta.env.VITE_CHAIN_ID),
+    chainId: CONFIG.network.chainId,
     name: 'Sepolia',
-    rpcUrl: import.meta.env.VITE_SEPOLIA_RPC,
-    explorer: import.meta.env.VITE_EXPLORER_URL,
+    rpcUrl: CONFIG.network.rpcUrl,
+    explorer: CONFIG.network.explorerUrl,
     contracts: {
-      dice: import.meta.env.VITE_DICE_GAME_ADDRESS,
-      token: import.meta.env.VITE_TOKEN_ADDRESS,
-      chainlink: import.meta.env.CHAIN_LINK_TOKEN
+      dice: CONFIG.contracts.dice.address,
+      token: CONFIG.contracts.token.address,
+      chainlink: CONFIG.chainlink.token
     }
   }
 };
@@ -113,7 +114,7 @@ export const DEFAULT_NETWORK = NETWORKS.SEPOLIA;
 
 // Chain IDs
 export const CHAIN_IDS = {
-  SEPOLIA: parseInt(import.meta.env.VITE_CHAIN_ID),
+  SEPOLIA: CONFIG.network.chainId,
   MAINNET: 1,
 };
 
@@ -158,4 +159,24 @@ export const UI_STATES = {
   WAITING_FOR_RESULT: 'waitingForResult',
   RESOLVING: 'resolving',
   CLAIMING: 'claiming'
+};
+
+export const NETWORK_CONFIG = {
+  chainId: CONFIG.network.chainId,
+  rpcUrl: CONFIG.network.rpcUrl,
+  explorerUrl: CONFIG.network.explorerUrl
+};
+
+export const CONTRACT_ADDRESSES = {
+  token: CONFIG.contracts.token.address,
+  dice: CONFIG.contracts.dice.address
+};
+
+export const CHAINLINK_CONFIG = {
+  coordinator: CONFIG.chainlink.coordinator,
+  keyHash: CONFIG.chainlink.keyHash,
+  subscriptionId: CONFIG.chainlink.subscriptionId,
+  callbackGasLimit: CONFIG.chainlink.callbackGasLimit,
+  requestConfirmations: CONFIG.chainlink.requestConfirmations,
+  numWords: CONFIG.chainlink.numWords
 };

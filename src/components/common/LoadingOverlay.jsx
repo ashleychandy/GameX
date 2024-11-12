@@ -1,43 +1,44 @@
+import React from 'react';
 import styled from 'styled-components';
-import { motion } from 'framer-motion';
 
-const Overlay = styled(motion.div)`
-  position: absolute;
+const Overlay = styled.div`
+  position: fixed;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background: ${({ theme }) => theme.background}CC;
-  backdrop-filter: blur(4px);
+  background: rgba(0, 0, 0, 0.7);
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  z-index: 100;
+  z-index: 1000;
 `;
 
-const LoadingSpinner = styled(motion.div)`
-  width: 48px;
-  height: 48px;
-  border: 4px solid ${({ theme }) => theme.primary}40;
-  border-top-color: ${({ theme }) => theme.primary};
+const Spinner = styled.div`
+  border: 4px solid #f3f3f3;
+  border-top: 4px solid #3498db;
   border-radius: 50%;
+  width: 40px;
+  height: 40px;
   animation: spin 1s linear infinite;
-
+  
   @keyframes spin {
-    to {
-      transform: rotate(360deg);
-    }
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
   }
 `;
 
-export function LoadingOverlay() {
+const LoadingText = styled.p`
+  color: white;
+  margin-top: 1rem;
+`;
+
+export function LoadingOverlay({ message = 'Loading...' }) {
   return (
-    <Overlay
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-    >
-      <LoadingSpinner />
+    <Overlay>
+      <Spinner />
+      <LoadingText>{message}</LoadingText>
     </Overlay>
   );
 } 

@@ -1,21 +1,83 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { ethers } from 'ethers';
 import { toast } from 'react-toastify';
-import { contracts, SUPPORTED_NETWORKS } from '../config';
-import { handleError } from '../utils/errorHandling';
+import DiceABI from '../abi/Dice.json';
+import TokenABI from '../abi/Token.json';
+import { SUPPORTED_NETWORKS } from '../config';
 
 export function useWallet() {
   const [provider, setProvider] = useState(null);
   const [signer, setSigner] = useState(null);
   const [address, setAddress] = useState(null);
   const [chainId, setChainId] = useState(null);
-  const [balance, setBalance] = useState('0');
-  const [tokenContract, setTokenContract] = useState(null);
-  const [diceContract, setDiceContract] = useState(null);
+  const [isConnected, setIsConnected] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [contracts, setContracts] = useState({
+    dice: null,
+    token: null
+  });
+
+  const initializeContracts = useCallback(async (signer) => {
+    try {
+      const network = await signer.provider.getNetwork();
+      const networkConfig = SUPPORTED_NETWORKS[network.chainId];
+      
+      if (!networkConfig) {
+        throw new Error('Unsupported network');
+      }
+
+      const diceContract = new ethers.Contract(
+        networkConfig.contracts.dice.address,
+        DiceABI.abi,
+        signer
+      );
+
+      const tokenContract = new ethers.Contract(
+        networkConfig.contracts.token.address,
+        TokenABI.abi,
+        signer
+      );
+
+      // Verify contracts are deployed
+      const [diceCode, tokenCode] = await Promise.all([
+        signer.provider.getCode(diceContract.address),
+        signer.provider.getCode(tokenContract.address)
+      ]);
+
+      if (diceCode === '0x' || tokenCode === '0x') {
+        throw new Error('Contracts not deployed');
+      }
+
+      diceContract.on('GameStarted', (player, amount, requestId) => {
+        console.log('Game Started:', { player, amount, requestId });
+      });
+
+      diceContract.on('GameResolved', (player, result, payout) => {
+        console.log('Game Resolved:', { player, result, payout });
+      });
+
+      setContracts({ dice: diceContract, token: tokenContract });
+      return { dice: diceContract, token: tokenContract };
+    } catch (error) {
+      console.error('Contract initialization failed:', error);
+      throw error;
+    }
+  }, []);
+
+  const checkAdminStatus = useCallback(async (address, contract) => {
+    if (!address || !contract) return false;
+    try {
+      const adminRole = await contract.DEFAULT_ADMIN_ROLE();
+      return await contract.hasRole(adminRole, address);
+    } catch (error) {
+      console.error('Error checking admin status:', error);
+      return false;
+    }
+  }, []);
 
   const connectWallet = useCallback(async () => {
     if (!window.ethereum) {
-      toast.error('Please install MetaMask');
+      toast.error('Please install MetaMask!');
       return false;
     }
 
@@ -24,6 +86,11 @@ export function useWallet() {
       const network = await provider.getNetwork();
       setChainId(network.chainId);
 
+      if (!SUPPORTED_NETWORKS[network.chainId]) {
+        toast.error('Please switch to a supported network');
+        return false;
+      }
+
       const accounts = await provider.send('eth_requestAccounts', []);
       const signer = await provider.getSigner();
       const address = await signer.getAddress();
@@ -31,137 +98,73 @@ export function useWallet() {
       setProvider(provider);
       setSigner(signer);
       setAddress(address);
+      setIsConnected(true);
 
-      // Initialize contracts
-      const tokenContract = new ethers.Contract(
-        contracts.token.address,
-        contracts.token.abi,
-        signer
-      );
-      const diceContract = new ethers.Contract(
-        contracts.dice.address,
-        contracts.dice.abi,
-        signer
-      );
+      const contracts = await initializeContracts(signer);
+      const isAdmin = await checkAdminStatus(address, contracts.dice);
+      setIsAdmin(isAdmin);
 
-      setTokenContract(tokenContract);
-      setDiceContract(diceContract);
-
+      localStorage.setItem('wallet-autoconnect', 'true');
       return true;
     } catch (error) {
-      const { message } = handleError(error);
-      toast.error(message);
+      console.error('Wallet connection failed:', error);
+      toast.error(error.message || 'Failed to connect wallet');
       return false;
     }
-  }, []);
+  }, [initializeContracts, checkAdminStatus]);
 
   const disconnectWallet = useCallback(() => {
     setProvider(null);
     setSigner(null);
     setAddress(null);
     setChainId(null);
-    setBalance('0');
-    setTokenContract(null);
-    setDiceContract(null);
+    setIsConnected(false);
+    setIsAdmin(false);
+    setContracts({ dice: null, token: null });
+    localStorage.removeItem('wallet-autoconnect');
   }, []);
 
-  const switchNetwork = useCallback(async (targetChainId) => {
-    try {
-      await window.ethereum.request({
-        method: 'wallet_switchEthereumChain',
-        params: [{ chainId: `0x${targetChainId.toString(16)}` }],
-      });
-      return true;
-    } catch (error) {
-      if (error.code === 4902) {
-        try {
-          const network = SUPPORTED_NETWORKS[targetChainId];
-          await window.ethereum.request({
-            method: 'wallet_addEthereumChain',
-            params: [
-              {
-                chainId: `0x${targetChainId.toString(16)}`,
-                chainName: network.name,
-                nativeCurrency: network.nativeCurrency,
-                rpcUrls: network.rpcUrls,
-                blockExplorerUrls: [network.blockExplorer],
-              },
-            ],
-          });
-          return true;
-        } catch (addError) {
-          const { message } = handleError(addError);
-          toast.error(message);
-          return false;
-        }
-      }
-      const { message } = handleError(error);
-      toast.error(message);
-      return false;
+  // Auto-connect if previously connected
+  useEffect(() => {
+    if (localStorage.getItem('wallet-autoconnect') === 'true') {
+      connectWallet();
     }
-  }, []);
+  }, [connectWallet]);
 
-  const updateBalance = useCallback(async () => {
-    if (!address || !tokenContract) return;
-
-    try {
-      const balance = await tokenContract.balanceOf(address);
-      setBalance(balance.toString());
-    } catch (error) {
-      console.error('Error fetching balance:', error);
-    }
-  }, [address, tokenContract]);
-
-  // Setup event listeners
+  // Setup network change listener
   useEffect(() => {
     if (!window.ethereum) return;
+
+    const handleChainChanged = (chainId) => {
+      window.location.reload();
+    };
 
     const handleAccountsChanged = (accounts) => {
       if (accounts.length === 0) {
         disconnectWallet();
-      } else {
-        setAddress(accounts[0]);
+      } else if (accounts[0] !== address) {
+        window.location.reload();
       }
     };
 
-    const handleChainChanged = () => {
-      window.location.reload();
-    };
-
-    window.ethereum.on('accountsChanged', handleAccountsChanged);
     window.ethereum.on('chainChanged', handleChainChanged);
+    window.ethereum.on('accountsChanged', handleAccountsChanged);
 
     return () => {
-      window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
       window.ethereum.removeListener('chainChanged', handleChainChanged);
+      window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
     };
-  }, [disconnectWallet]);
-
-  // Auto-update balance
-  useEffect(() => {
-    updateBalance();
-
-    if (tokenContract && address) {
-      const filter = tokenContract.filters.Transfer(null, address);
-      tokenContract.on(filter, updateBalance);
-
-      return () => {
-        tokenContract.off(filter, updateBalance);
-      };
-    }
-  }, [tokenContract, address, updateBalance]);
+  }, [address, disconnectWallet]);
 
   return {
     provider,
     signer,
     address,
     chainId,
-    balance,
-    tokenContract,
-    diceContract,
+    isConnected,
+    isAdmin,
+    contracts,
     connectWallet,
-    disconnectWallet,
-    switchNetwork,
-    updateBalance,
+    disconnectWallet
   };
 }

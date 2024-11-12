@@ -1,21 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { ethers } from 'ethers';
 import styled from 'styled-components';
+import { motion } from 'framer-motion';
+import { ethers } from 'ethers';
 import { toast } from 'react-toastify';
 import { useWallet } from '../../contexts/WalletContext';
-import { useGame } from '../../hooks/useGame';
-import { useContractState } from '../../hooks/useContractState';
+import { useDiceGame } from '../../hooks/useDiceGame';
 import { DiceSelector } from './DiceSelector';
 import { BetInput } from './BetInput';
 import { GameStatus } from './GameStatus';
 import { GameHistory } from './GameHistory';
 import { UserStats } from './UserStats';
-import { calculateMaxBet } from '../../utils/format';
+import { LoadingOverlay } from '../common/LoadingOverlay';
+import { ErrorBoundary } from '../common/ErrorBoundary';
+import { validateBetAmount, calculateMaxBet } from '../../utils/gameCalculations';
+import { GAME_STATES, ERROR_MESSAGES } from '../../utils/constants';
+import { handleError } from '../../utils/errorHandling';
+import { CONFIG } from '../../config';
 
-const GameContainer = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 2rem;
+const GameContainer = styled(motion.div)`
   max-width: 1200px;
   margin: 0 auto;
   padding: 2rem;
@@ -36,7 +38,7 @@ const ButtonGroup = styled.div`
   margin-top: 1rem;
 `;
 
-const Button = styled.button`
+const Button = styled(motion.button)`
   padding: 0.75rem 1.5rem;
   border-radius: 8px;
   border: none;
@@ -46,12 +48,6 @@ const Button = styled.button`
   font-weight: 600;
   cursor: ${({ disabled }) => disabled ? 'not-allowed' : 'pointer'};
   opacity: ${({ disabled }) => disabled ? 0.5 : 1};
-  transition: all 0.2s ease;
-
-  &:hover:not(:disabled) {
-    transform: translateY(-2px);
-    opacity: 0.9;
-  }
 `;
 
 const StatsContainer = styled.div`
@@ -62,134 +58,188 @@ const StatsContainer = styled.div`
 `;
 
 export function DiceGame() {
-  const { address } = useWallet();
-  const { 
-    gameData, 
-    previousBets, 
+  const { address, isConnected } = useWallet();
+  const {
+    gameData,
+    previousBets,
     pendingRequest,
     userData,
     requestDetails,
-    canStart,
     loadingStates,
     placeBet,
     resolveGame,
     recoverStuckGame,
     refreshGameState
-  } = useGame();
-  const { state: contractState } = useContractState();
-  
+  } = useDiceGame();
+
   const [selectedNumber, setSelectedNumber] = useState(1);
   const [betAmount, setBetAmount] = useState('');
+  const [isProcessing, setIsProcessing] = useState(false);
 
-  const maxBet = calculateMaxBet(ethers.BigNumber.from(contractState.contractBalance));
-  const isGameActive = gameData?.isActive;
-  const isPending = pendingRequest || loadingStates.placingBet;
-  const canPlay = !isGameActive && !contractState.paused && canStart && !isPending;
+  // Validate contract initialization
+  useEffect(() => {
+    if (!isConnected) {
+      toast.error(ERROR_MESSAGES.WALLET_NOT_CONNECTED);
+      return;
+    }
+  }, [isConnected]);
+
+  // Auto-refresh game state
+  useEffect(() => {
+    const interval = setInterval(refreshGameState, 10000);
+    return () => clearInterval(interval);
+  }, [refreshGameState]);
 
   const handlePlay = async () => {
-    if (!address) {
-      toast.error('Please connect your wallet');
-      return;
-    }
-
-    if (!betAmount || parseFloat(betAmount) <= 0) {
-      toast.error('Please enter a valid bet amount');
-      return;
-    }
-
     try {
-      await placeBet(selectedNumber, betAmount);
+      setIsProcessing(true);
+
+      // Validate network
+      const network = await provider.getNetwork();
+      if (network.chainId !== CONFIG.network.chainId) {
+        throw new Error(`Please switch to ${CONFIG.network.chainId} network`);
+      }
+
+      // Validate wallet connection
+      if (!address) {
+        throw new Error(ERROR_MESSAGES.WALLET_NOT_CONNECTED);
+      }
+
+      // Validate bet amount
+      const validationError = validateBetAmount(betAmount, userData?.minBet, userData?.maxBet);
+      if (validationError) {
+        throw new Error(validationError);
+      }
+
+      // Place bet
+      const tx = await placeBet(selectedNumber, betAmount);
+      
+      // Track transaction
+      toast.info('Transaction submitted...', { toastId: tx.hash });
+      
+      const receipt = await tx.wait();
+      
+      if (receipt.status === 1) {
+        toast.success('Bet placed successfully!');
+        setBetAmount('');
+        await refreshGameState();
+      } else {
+        throw new Error('Transaction failed');
+      }
+
     } catch (error) {
-      toast.error(error.message);
+      const { message } = handleError(error);
+      toast.error(message);
+    } finally {
+      setIsProcessing(false);
     }
   };
 
   const handleResolve = async () => {
     try {
+      setIsProcessing(true);
       await resolveGame();
+      await refreshGameState();
     } catch (error) {
-      toast.error(error.message);
+      const { message } = handleError(error);
+      toast.error(message);
+    } finally {
+      setIsProcessing(false);
     }
   };
 
   const handleRecover = async () => {
     try {
+      setIsProcessing(true);
       await recoverStuckGame();
+      await refreshGameState();
     } catch (error) {
-      toast.error(error.message);
+      const { message } = handleError(error);
+      toast.error(message);
+    } finally {
+      setIsProcessing(false);
     }
   };
 
-  // Auto-refresh game state when needed
-  useEffect(() => {
-    if (isGameActive || pendingRequest) {
-      const interval = setInterval(refreshGameState, 5000);
-      return () => clearInterval(interval);
-    }
-  }, [isGameActive, pendingRequest, refreshGameState]);
+  const isGameActive = gameData?.isActive;
+  const isPending = pendingRequest || isProcessing;
+  const canPlay = !isGameActive && !isPending && isConnected;
+
+  if (loadingStates.fetchingData) {
+    return <LoadingOverlay message="Loading game data..." />;
+  }
 
   return (
-    <GameContainer>
-      <GameStatus 
-        gameData={gameData}
-        contractState={contractState}
-        requestDetails={requestDetails}
-        pendingRequest={pendingRequest}
-      />
-
-      <GameControls>
-        <DiceSelector 
-          selectedNumber={selectedNumber}
-          onSelect={setSelectedNumber}
-          disabled={!canPlay}
+    <ErrorBoundary>
+      <GameContainer
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+      >
+        <GameStatus 
+          gameData={gameData}
+          pendingRequest={pendingRequest}
+          requestDetails={requestDetails}
         />
 
-        <BetInput
-          value={betAmount}
-          onChange={setBetAmount}
-          maxBet={maxBet}
-          disabled={!canPlay}
-        />
-
-        <ButtonGroup>
-          <Button
-            $variant="primary"
+        <GameControls>
+          <DiceSelector 
+            selectedNumber={selectedNumber}
+            onSelect={setSelectedNumber}
             disabled={!canPlay}
-            onClick={handlePlay}
-          >
-            {loadingStates.placingBet ? 'Placing Bet...' : 'Play'}
-          </Button>
+          />
 
-          {isGameActive && (
+          <BetInput
+            value={betAmount}
+            onChange={setBetAmount}
+            disabled={!canPlay}
+            minBet={userData?.minBet}
+            maxBet={userData?.maxBet}
+          />
+
+          <ButtonGroup>
             <Button
-              disabled={loadingStates.resolvingGame}
-              onClick={handleResolve}
+              $variant="primary"
+              disabled={!canPlay || isProcessing}
+              onClick={handlePlay}
+              whileHover={canPlay && { scale: 1.05 }}
+              whileTap={canPlay && { scale: 0.95 }}
             >
-              {loadingStates.resolvingGame ? 'Resolving...' : 'Resolve Game'}
+              {isProcessing ? 'Processing...' : 'Play'}
             </Button>
-          )}
 
-          {pendingRequest && (
-            <Button
-              disabled={loadingStates.recoveringGame}
-              onClick={handleRecover}
-            >
-              {loadingStates.recoveringGame ? 'Recovering...' : 'Recover Game'}
-            </Button>
-          )}
-        </ButtonGroup>
-      </GameControls>
+            {isGameActive && (
+              <Button
+                disabled={isProcessing}
+                onClick={handleResolve}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                {isProcessing ? 'Resolving...' : 'Resolve Game'}
+              </Button>
+            )}
 
-      <StatsContainer>
-        <UserStats 
-          stats={userData}
-          previousBets={previousBets}
-        />
-        <GameHistory 
-          bets={previousBets}
-          address={address}
-        />
-      </StatsContainer>
-    </GameContainer>
+            {pendingRequest && (
+              <Button
+                disabled={isProcessing}
+                onClick={handleRecover}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                {isProcessing ? 'Recovering...' : 'Recover Game'}
+              </Button>
+            )}
+          </ButtonGroup>
+        </GameControls>
+
+        <StatsContainer>
+          <UserStats stats={userData} />
+          <GameHistory 
+            bets={previousBets}
+            onRefresh={refreshGameState}
+          />
+        </StatsContainer>
+      </GameContainer>
+    </ErrorBoundary>
   );
 }
