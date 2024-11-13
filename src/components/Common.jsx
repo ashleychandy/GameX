@@ -6,6 +6,7 @@ import { Link, Navigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { Button } from './Button';
 import { useWallet } from '../contexts/WalletContext';
+import { formatAmount } from '../utils/helpers';
 
 // Animation keyframes
 const spin = keyframes`
@@ -127,147 +128,18 @@ export function LoadingOverlay({
   message = 'Loading...', 
   transparent = false 
 }) {
-  return (
+  return createPortal(
     <OverlayContainer $transparent={transparent}>
       <LoadingSpinner size="large" />
       <LoadingText>{message}</LoadingText>
-    </OverlayContainer>
+    </OverlayContainer>,
+    document.body
   );
 }
 
 LoadingOverlay.propTypes = {
   message: PropTypes.string,
   transparent: PropTypes.bool
-};
-
-// Error Components
-const ErrorContainer = styled(motion.div)`
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 2rem;
-  margin: 2rem;
-  background: ${({ theme }) => theme.surface};
-  border-radius: 16px;
-  box-shadow: ${({ theme }) => theme.shadow.md};
-  text-align: center;
-  max-width: 600px;
-  width: 100%;
-  margin: 2rem auto;
-`;
-
-const ErrorTitle = styled.h2`
-  color: ${({ theme }) => theme.error};
-  margin-bottom: 1rem;
-  font-size: 1.5rem;
-`;
-
-const ErrorMessage = styled.p`
-  color: ${({ theme }) => theme.text.secondary};
-  margin-bottom: 2rem;
-  max-width: 500px;
-  line-height: 1.5;
-`;
-
-const ErrorDetails = styled.pre`
-  background: ${({ theme }) => theme.background};
-  padding: 1rem;
-  border-radius: 8px;
-  font-size: 0.9rem;
-  overflow-x: auto;
-  margin: 1rem 0;
-  max-width: 100%;
-  white-space: pre-wrap;
-  word-wrap: break-word;
-`;
-
-const ErrorActions = styled.div`
-  display: flex;
-  gap: 1rem;
-  margin-top: 1rem;
-`;
-
-export class ErrorBoundary extends React.Component {
-  constructor(props) {
-    super(props);
-    this.state = { 
-      hasError: false,
-      error: null,
-      errorInfo: null
-    };
-  }
-
-  static getDerivedStateFromError(error) {
-    return { hasError: true, error };
-  }
-
-  componentDidCatch(error, errorInfo) {
-    console.error('Error caught by boundary:', error, errorInfo);
-    this.setState({
-      error,
-      errorInfo
-    });
-  }
-
-  render() {
-    if (this.state.hasError) {
-      if (this.props.fallback) {
-        return this.props.fallback;
-      }
-      return (
-        <ErrorFallback 
-          error={this.state.error}
-          errorInfo={this.state.errorInfo}
-          resetErrorBoundary={() => {
-            this.setState({ hasError: false });
-            this.props.onReset?.();
-          }}
-        />
-      );
-    }
-    return this.props.children;
-  }
-}
-
-ErrorBoundary.propTypes = {
-  children: PropTypes.node.isRequired,
-  onReset: PropTypes.func,
-  fallback: PropTypes.node
-};
-
-export function ErrorFallback({ error, errorInfo, resetErrorBoundary }) {
-  return (
-    <ErrorContainer
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: 20 }}
-    >
-      <ErrorTitle>Something went wrong</ErrorTitle>
-      <ErrorMessage>
-        {error?.message || 'An unexpected error occurred'}
-      </ErrorMessage>
-      {errorInfo && (
-        <ErrorDetails>
-          {errorInfo.componentStack}
-        </ErrorDetails>
-      )}
-      <ErrorActions>
-        <Button onClick={resetErrorBoundary} variant="primary">
-          Try Again
-        </Button>
-        <Button onClick={() => window.location.reload()} variant="secondary">
-          Refresh Page
-        </Button>
-      </ErrorActions>
-    </ErrorContainer>
-  );
-}
-
-ErrorFallback.propTypes = {
-  error: PropTypes.instanceOf(Error),
-  errorInfo: PropTypes.object,
-  resetErrorBoundary: PropTypes.func.isRequired
 };
 
 // Portal Component
@@ -380,36 +252,6 @@ const ToastWrapper = styled.div`
   z-index: 1000;
 `;
 
-const IconContainer = styled.div`
-  width: 24px;
-  height: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: ${({ theme, $type }) => {
-    switch ($type) {
-      case 'error': return theme.error;
-      case 'success': return theme.success;
-      case 'warning': return theme.warning;
-      default: return theme.primary;
-    }
-  }};
-`;
-
-const ToastContent = styled.div`
-  flex: 1;
-
-  .title {
-    font-weight: 600;
-    margin-bottom: 0.25rem;
-  }
-
-  .message {
-    color: ${({ theme }) => theme.text.secondary};
-    font-size: 0.875rem;
-  }
-`;
-
 export function Toast({ 
   type = 'info', 
   title, 
@@ -434,16 +276,10 @@ export function Toast({
         animate="animate"
         exit="exit"
       >
-        <IconContainer $type={type}>
-          {type === 'success' && '✓'}
-          {type === 'error' && '✕'}
-          {type === 'warning' && '⚠'}
-          {type === 'info' && 'ℹ'}
-        </IconContainer>
-        <ToastContent>
+        <div className="content">
           {title && <div className="title">{title}</div>}
           {message && <div className="message">{message}</div>}
-        </ToastContent>
+        </div>
       </ToastContainer>
     </ToastWrapper>
   );
@@ -504,29 +340,12 @@ const TooltipContent = styled(motion.div)`
   z-index: 1000;
 `;
 
-const TooltipArrow = styled.div`
-  position: absolute;
-  width: 8px;
-  height: 8px;
-  background: inherit;
-  transform: rotate(45deg);
-  ${({ $placement = 'top' }) => {
-    switch ($placement) {
-      case 'bottom': return 'top: -4px; left: 50%; margin-left: -4px;';
-      case 'left': return 'right: -4px; top: 50%; margin-top: -4px;';
-      case 'right': return 'left: -4px; top: 50%; margin-top: -4px;';
-      default: return 'bottom: -4px; left: 50%; margin-left: -4px;';
-    }
-  }}
-`;
-
 export function Tooltip({ 
   children, 
   content,
   placement = 'top',
   delay = 0,
-  offset = 8,
-  ...props 
+  offset = 8
 }) {
   const [isVisible, setIsVisible] = useState(false);
   
@@ -539,7 +358,6 @@ export function Tooltip({
     <TooltipContainer 
       onMouseEnter={showTooltip}
       onMouseLeave={() => setIsVisible(false)}
-      {...props}
     >
       {children}
       <AnimatePresence>
@@ -553,7 +371,6 @@ export function Tooltip({
             exit="exit"
           >
             {content}
-            <TooltipArrow $placement={placement} />
           </TooltipContent>
         )}
       </AnimatePresence>
@@ -594,12 +411,6 @@ const BadgeContainer = styled.span`
   color: ${({ theme, $variant }) => theme[$variant] || theme.primary};
   border: ${({ theme, $variant, $outline }) => 
     $outline ? `1px solid ${theme[$variant] || theme.primary}` : 'none'};
-  transition: all 0.2s ease;
-
-  &:hover {
-    background: ${({ theme, $variant, $outline }) => 
-      $outline ? `${theme[$variant] || theme.primary}10` : `${theme[$variant] || theme.primary}30`};
-  }
 `;
 
 export function Badge({ 
@@ -608,8 +419,7 @@ export function Badge({
   size = 'medium',
   outline = false,
   pill = false,
-  className,
-  ...props 
+  className
 }) {
   return (
     <BadgeContainer 
@@ -618,7 +428,6 @@ export function Badge({
       $outline={outline}
       $pill={pill}
       className={className}
-      {...props}
     >
       {children}
     </BadgeContainer>
@@ -641,7 +450,6 @@ const SwitchContainer = styled.label`
   align-items: center;
   cursor: ${({ $disabled }) => $disabled ? 'not-allowed' : 'pointer'};
   opacity: ${({ $disabled }) => $disabled ? 0.5 : 1};
-  user-select: none;
 `;
 
 const SwitchInput = styled.input`
@@ -656,15 +464,6 @@ const SwitchInput = styled.input`
 
   &:checked + span:before {
     transform: translateX(24px);
-  }
-
-  &:focus + span {
-    box-shadow: 0 0 0 2px ${({ theme }) => `${theme.primary}40`};
-  }
-
-  &:disabled + span {
-    opacity: 0.5;
-    cursor: not-allowed;
   }
 `;
 
@@ -690,39 +489,23 @@ const SwitchSlider = styled.span`
   }
 `;
 
-const SwitchLabel = styled.span`
-  margin-left: 0.5rem;
-  color: ${({ theme }) => theme.text.secondary};
-`;
-
 export function Switch({ 
   checked, 
   onChange, 
-  id,
-  label,
   disabled = false,
-  className,
-  ...props 
+  label,
+  className
 }) {
-  const handleChange = (event) => {
-    if (!disabled) {
-      onChange(event.target.checked);
-    }
-  };
-
   return (
     <SwitchContainer $disabled={disabled} className={className}>
       <SwitchInput
         type="checkbox"
-        id={id}
         checked={checked}
-        onChange={handleChange}
+        onChange={(e) => !disabled && onChange(e.target.checked)}
         disabled={disabled}
-        aria-label={label}
-        {...props}
       />
       <SwitchSlider />
-      {label && <SwitchLabel>{label}</SwitchLabel>}
+      {label && <span className="label">{label}</span>}
     </SwitchContainer>
   );
 }
@@ -730,9 +513,8 @@ export function Switch({
 Switch.propTypes = {
   checked: PropTypes.bool.isRequired,
   onChange: PropTypes.func.isRequired,
-  id: PropTypes.string,
-  label: PropTypes.string,
   disabled: PropTypes.bool,
+  label: PropTypes.string,
   className: PropTypes.string
 };
 
@@ -767,9 +549,21 @@ export const animations = {
   }
 };
 
-// Export all components
+// Page Transitions
+export const pageTransition = {
+  initial: { opacity: 0, x: -20 },
+  animate: { opacity: 1, x: 0 },
+  exit: { opacity: 0, x: 20 }
+};
+
+export const modalTransition = {
+  initial: { opacity: 0, scale: 0.95 },
+  animate: { opacity: 1, scale: 1 },
+  exit: { opacity: 0, scale: 0.95 }
+};
+
+// Export all components and animations
 export {
-  ErrorBoundary,
   Loading,
   LoadingOverlay,
   Portal,
@@ -787,5 +581,7 @@ export const commonAnimations = {
   fadeIn: animations.fadeIn,
   scaleIn: animations.scaleIn,
   toastVariants,
-  tooltipVariants
+  tooltipVariants,
+  pageTransition,
+  modalTransition
 };

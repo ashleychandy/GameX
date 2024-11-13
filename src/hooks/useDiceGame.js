@@ -7,6 +7,7 @@ import { handleError } from '../utils/errorHandling';
 import { GAME_STATES } from '../utils/constants';
 import { executeContractTransaction } from '../utils/contractHelpers';
 import { useContract } from './useContract';
+import { CONTRACT_ADDRESSES } from '../utils/constants';
 
 export function useDiceGame() {
   const { address, contracts } = useWallet();
@@ -20,6 +21,9 @@ export function useDiceGame() {
     placingBet: false,
     resolving: false
   });
+
+  const diceAddress = CONTRACT_ADDRESSES.dice;
+  const tokenAddress = CONTRACT_ADDRESSES.token;
 
   const updateGameState = useCallback(async () => {
     if (!contracts?.dice || !address) return;

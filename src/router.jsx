@@ -1,23 +1,27 @@
 import React, { lazy, Suspense } from "react";
-import { Layout } from "./components/Layout";
-import { Loading } from "./components/Loading";
+import { createBrowserRouter } from "react-router-dom";
+import { Layout } from "./components/layout/Layout";
+import { Loading } from "./components/common/Loading";
 import { ProtectedRoute } from "./components/common/ProtectedRoute";
+import { NotFoundPage } from "./pages/NotFoundPage";
 
+// Lazy loaded components
 const HomePage = lazy(() => import("./pages/HomePage"));
 const DicePage = lazy(() => import("./pages/DicePage"));
 
-const routes = [
+export const router = createBrowserRouter([
   {
     path: "/",
-    element: (
-      <Suspense fallback={<Loading />}>
-        <Layout />
-      </Suspense>
-    ),
+    element: <Layout />,
+    errorElement: <NotFoundPage />,
     children: [
       {
         index: true,
-        element: <HomePage />,
+        element: (
+          <Suspense fallback={<Loading />}>
+            <HomePage />
+          </Suspense>
+        ),
       },
       {
         path: "dice",
@@ -28,20 +32,16 @@ const routes = [
             </Suspense>
           </ProtectedRoute>
         ),
-      }
+      },
     ],
   },
-];
+]);
 
+// Route metadata helper
 export function getRouteMetadata(pathname) {
-  // Example implementation
   const metadata = {
     '/': { title: 'Home' },
     '/dice': { title: 'Dice Game' },
-    // Add more routes and their metadata as needed
   };
-
   return metadata[pathname] || { title: 'Unknown' };
-}
-
-export default routes;
+} 

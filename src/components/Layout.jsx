@@ -1,40 +1,48 @@
 // src/components/Layout.jsx
-import React, { useEffect, useState, useRef } from 'react';
-import PropTypes from 'prop-types';
-import styled from 'styled-components';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Link, useLocation, Outlet, useNavigate } from 'react-router-dom';
-import { Button } from './common/Button';
-import { useWallet } from '../contexts/WalletContext';
-import { formatAddress, formatAmount } from '../utils/helpers';
-import { toast } from 'react-toastify';
-import { getRouteMetadata } from '../routes';
-import { useTheme } from '../contexts/ThemeContext';
-import { FiMenu, FiX, FiSun, FiMoon, FiUser, FiSettings, FiLogOut } from 'react-icons/fi';
+import React, { useEffect, useState, useRef } from "react";
+import PropTypes from "prop-types";
+import styled from "styled-components";
+import { motion, AnimatePresence } from "framer-motion";
+import { Link, useLocation, Outlet, useNavigate } from "react-router-dom";
+import { Button } from "./common/Button";
+import { useWallet } from "../contexts/WalletContext";
+import { formatAddress, formatAmount } from "../utils/helpers";
+import { toast } from "react-toastify";
+import { getRouteMetadata } from "../routes";
+import { useTheme } from "../contexts/ThemeContext";
+import {
+  FiMenu,
+  FiX,
+  FiSun,
+  FiMoon,
+  FiUser,
+  FiSettings,
+  FiLogOut,
+} from "react-icons/fi";
 
 // Animation variants
 const mobileMenuVariants = {
-  hidden: { 
+  hidden: {
     opacity: 0,
     height: 0,
-    transition: { duration: 0.2 }
+    transition: { duration: 0.2 },
   },
-  visible: { 
+  visible: {
     opacity: 1,
-    height: 'auto',
-    transition: { duration: 0.2 }
-  }
+    height: "auto",
+    transition: { duration: 0.2 },
+  },
 };
 
 const menuItemVariants = {
-  hidden: { 
+  hidden: {
     opacity: 0,
-    x: -20
+    x: -20,
   },
-  visible: { 
+  visible: {
     opacity: 1,
-    x: 0
-  }
+    x: 0,
+  },
 };
 
 // Layout Container
@@ -128,7 +136,7 @@ const NavLinks = styled.div`
 
 const MobileNavLinks = styled(motion.div)`
   display: none;
-  
+
   @media (max-width: 768px) {
     display: flex;
     flex-direction: column;
@@ -151,7 +159,7 @@ const Logo = styled(Link)`
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  
+
   span {
     background: ${({ theme }) => theme.gradients.primary};
     -webkit-background-clip: text;
@@ -164,7 +172,7 @@ const Logo = styled(Link)`
 `;
 
 const StyledNavLink = styled(motion(Link))`
-  color: ${({ theme, $active }) => 
+  color: ${({ theme, $active }) =>
     $active ? theme.primary : theme.text.secondary};
   text-decoration: none;
   font-weight: 500;
@@ -178,7 +186,9 @@ const StyledNavLink = styled(motion(Link))`
     color: ${({ theme }) => theme.primary};
   }
 
-  ${({ $active, theme }) => $active && `
+  ${({ $active, theme }) =>
+    $active &&
+    `
     background: ${theme.primary}15;
     color: ${theme.primary};
   `}
@@ -197,7 +207,7 @@ const MenuButton = styled.button`
   cursor: pointer;
   padding: 0.5rem;
   border-radius: 8px;
-  
+
   @media (max-width: 768px) {
     display: flex;
     align-items: center;
@@ -232,7 +242,7 @@ const WalletAddress = styled.span`
   padding: 0.25rem 0.5rem;
   border-radius: 4px;
   background: ${({ theme }) => `${theme.primary}10`};
-  
+
   &:hover {
     background: ${({ theme }) => `${theme.primary}20`};
   }
@@ -248,7 +258,7 @@ const ThemeToggle = styled.button`
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  
+
   &:hover {
     background: ${({ theme }) => `${theme.primary}10`};
   }
@@ -346,7 +356,7 @@ const FooterLink = styled(Link)`
   color: ${({ theme }) => theme.text.secondary};
   text-decoration: none;
   transition: color 0.2s ease;
-  
+
   &:hover {
     color: ${({ theme }) => theme.primary};
   }
@@ -364,7 +374,7 @@ const Main = styled.main`
   flex: 1;
   background: ${({ theme }) => theme.background};
   padding: 2rem;
-  
+
   @media (max-width: 768px) {
     padding: 1rem;
   }
@@ -385,17 +395,17 @@ function UserMenu() {
     };
 
     const handleEscape = (event) => {
-      if (event.key === 'Escape') {
+      if (event.key === "Escape") {
         setIsOpen(false);
       }
     };
 
-    document.addEventListener('mousedown', handleClickOutside);
-    document.addEventListener('keydown', handleEscape);
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleEscape);
 
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('keydown', handleEscape);
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleEscape);
     };
   }, []);
 
@@ -406,7 +416,7 @@ function UserMenu() {
 
   return (
     <UserMenuContainer ref={menuRef}>
-      <UserMenuButton 
+      <UserMenuButton
         onClick={() => setIsOpen(!isOpen)}
         aria-expanded={isOpen}
         aria-haspopup="true"
@@ -422,19 +432,17 @@ function UserMenu() {
             exit={{ opacity: 0, y: 10 }}
             transition={{ duration: 0.2 }}
           >
-            <UserMenuItem 
-              onClick={() => handleMenuItemClick(() => navigate('/profile'))}
+            <UserMenuItem
+              onClick={() => handleMenuItemClick(() => navigate("/profile"))}
             >
               <FiUser /> Profile
             </UserMenuItem>
-            <UserMenuItem 
-              onClick={() => handleMenuItemClick(() => navigate('/settings'))}
+            <UserMenuItem
+              onClick={() => handleMenuItemClick(() => navigate("/settings"))}
             >
               <FiSettings /> Settings
             </UserMenuItem>
-            <UserMenuItem 
-              onClick={() => handleMenuItemClick(logout)}
-            >
+            <UserMenuItem onClick={() => handleMenuItemClick(logout)}>
               <FiLogOut /> Logout
             </UserMenuItem>
           </UserMenuDropdown>
@@ -445,22 +453,28 @@ function UserMenu() {
 }
 
 // Navbar Component
-export function Navbar() {
+function Navbar() {
   const location = useLocation();
   const { isDarkMode, toggleTheme } = useTheme();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const { isConnected, isConnecting, address, balance, connectWallet, disconnectWallet } = useWallet();
+  const {
+    isConnected,
+    isConnecting,
+    address,
+    balance,
+    connectWallet,
+    disconnectWallet,
+  } = useWallet();
 
-  // Add escape key handler for mobile menu
   useEffect(() => {
     const handleKeyPress = (event) => {
-      if (event.key === 'Escape' && isMobileMenuOpen) {
+      if (event.key === "Escape" && isMobileMenuOpen) {
         setIsMobileMenuOpen(false);
       }
     };
 
-    document.addEventListener('keydown', handleKeyPress);
-    return () => document.removeEventListener('keydown', handleKeyPress);
+    document.addEventListener("keydown", handleKeyPress);
+    return () => document.removeEventListener("keydown", handleKeyPress);
   }, [isMobileMenuOpen]);
 
   const handleConnect = async () => {
@@ -473,12 +487,12 @@ export function Navbar() {
 
   const handleDisconnect = () => {
     disconnectWallet();
-    toast.success('Wallet disconnected');
+    toast.success("Wallet disconnected");
   };
 
   const handleAddressClick = () => {
     navigator.clipboard.writeText(address);
-    toast.success('Address copied to clipboard!');
+    toast.success("Address copied to clipboard!");
   };
 
   return (
@@ -493,53 +507,47 @@ export function Navbar() {
             <span>GameX</span>Platform
           </Logo>
           <NavLinks>
-            <StyledNavLink 
-              to="/" 
-              $active={location.pathname === '/'}
+            <StyledNavLink
+              to="/"
+              $active={location.pathname === "/"}
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
             >
               Home
             </StyledNavLink>
-            <StyledNavLink 
-              to="/game" 
-              $active={location.pathname === '/game'}
+            <StyledNavLink
+              to="/dice"
+              $active={location.pathname === "/dice"}
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
             >
-              Play
-            </StyledNavLink>
-            <StyledNavLink 
-              to="/marketplace" 
-              $active={location.pathname === '/marketplace'}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              Marketplace
+              Dice Game
             </StyledNavLink>
           </NavLinks>
         </HeaderLeft>
-        
+
         <HeaderRight>
-          <ThemeToggle 
+          <ThemeToggle
             onClick={toggleTheme}
-            aria-label={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+            aria-label={
+              isDarkMode ? "Switch to light mode" : "Switch to dark mode"
+            }
           >
             {isDarkMode ? <FiSun size={20} /> : <FiMoon size={20} />}
           </ThemeToggle>
-          
+
           <WalletInfo>
             {isConnected ? (
               <>
                 <WalletBalance>{formatAmount(balance)} GameX</WalletBalance>
-                <WalletAddress 
+                <WalletAddress
                   onClick={handleAddressClick}
                   title="Click to copy address"
                 >
                   {formatAddress(address)}
                 </WalletAddress>
-                <Button 
-                  onClick={handleDisconnect} 
+                <Button
+                  onClick={handleDisconnect}
                   disabled={isConnecting}
                   variant="secondary"
                 >
@@ -547,21 +555,21 @@ export function Navbar() {
                 </Button>
               </>
             ) : (
-              <Button 
-                onClick={handleConnect} 
+              <Button
+                onClick={handleConnect}
                 disabled={isConnecting}
                 variant="primary"
               >
-                {isConnecting ? 'Connecting...' : 'Connect Wallet'}
+                {isConnecting ? "Connecting..." : "Connect Wallet"}
               </Button>
             )}
           </WalletInfo>
-          
+
           {isConnected && <UserMenu />}
-          
-          <MenuButton 
+
+          <MenuButton
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            aria-label={isMobileMenuOpen ? 'Close menu' : 'Open menu'}
+            aria-label={isMobileMenuOpen ? "Close menu" : "Open menu"}
             aria-expanded={isMobileMenuOpen}
           >
             {isMobileMenuOpen ? <FiX size={24} /> : <FiMenu size={24} />}
@@ -577,29 +585,21 @@ export function Navbar() {
             animate="visible"
             exit="hidden"
           >
-            <StyledNavLink 
-              to="/" 
-              $active={location.pathname === '/'}
+            <StyledNavLink
+              to="/"
+              $active={location.pathname === "/"}
               onClick={() => setIsMobileMenuOpen(false)}
               variants={menuItemVariants}
             >
               Home
             </StyledNavLink>
-            <StyledNavLink 
-              to="/game" 
-              $active={location.pathname === '/game'}
+            <StyledNavLink
+              to="/dice"
+              $active={location.pathname === "/dice"}
               onClick={() => setIsMobileMenuOpen(false)}
               variants={menuItemVariants}
             >
-              Play
-            </StyledNavLink>
-            <StyledNavLink 
-              to="/marketplace" 
-              $active={location.pathname === '/marketplace'}
-              onClick={() => setIsMobileMenuOpen(false)}
-              variants={menuItemVariants}
-            >
-              Marketplace
+              Dice Game
             </StyledNavLink>
           </MobileNavLinks>
         )}
@@ -619,47 +619,47 @@ function Footer() {
           <FooterLink to="/team">Our Team</FooterLink>
           <FooterLink to="/careers">Careers</FooterLink>
         </FooterSection>
-        
+
         <FooterSection>
           <FooterTitle>Resources</FooterTitle>
           <FooterLink to="/docs">Documentation</FooterLink>
           <FooterLink to="/blog">Blog</FooterLink>
           <FooterLink to="/faq">FAQ</FooterLink>
         </FooterSection>
-        
+
         <FooterSection>
           <FooterTitle>Legal</FooterTitle>
           <FooterLink to="/privacy">Privacy Policy</FooterLink>
           <FooterLink to="/terms">Terms of Service</FooterLink>
           <FooterLink to="/cookies">Cookie Policy</FooterLink>
         </FooterSection>
-        
+
         <FooterSection>
           <FooterTitle>Connect</FooterTitle>
-          <FooterLink 
-            to="https://discord.gg/gamex" 
-            target="_blank" 
+          <FooterLink
+            to="https://discord.gg/gamex"
+            target="_blank"
             rel="noopener noreferrer"
           >
             Discord
           </FooterLink>
-          <FooterLink 
-            to="https://twitter.com/gamex" 
-            target="_blank" 
+          <FooterLink
+            to="https://twitter.com/gamex"
+            target="_blank"
             rel="noopener noreferrer"
           >
             Twitter
           </FooterLink>
-          <FooterLink 
-            to="https://t.me/gamex" 
-            target="_blank" 
+          <FooterLink
+            to="https://t.me/gamex"
+            target="_blank"
             rel="noopener noreferrer"
           >
             Telegram
           </FooterLink>
         </FooterSection>
       </FooterContent>
-      
+
       <FooterBottom>
         <p>© {new Date().getFullYear()} GameX Platform. All rights reserved.</p>
       </FooterBottom>
@@ -670,7 +670,7 @@ function Footer() {
 // Main Layout Component
 function Layout() {
   const location = useLocation();
-  
+
   useEffect(() => {
     const { title } = getRouteMetadata(location.pathname);
     if (title) {
@@ -690,6 +690,10 @@ function Layout() {
 }
 
 // PropTypes
+Layout.propTypes = {
+  children: PropTypes.node,
+};
+
 Navbar.propTypes = {
   onMenuClick: PropTypes.func,
 };
@@ -702,24 +706,14 @@ UserMenu.propTypes = {
   onLogout: PropTypes.func,
 };
 
-Layout.propTypes = {
-  children: PropTypes.node,
-};
-
 Footer.propTypes = {
   className: PropTypes.string,
 };
 
-// Export all components
-export {
-  Layout,
-  Navbar,
-  Footer,
-  UserMenu
-};
-
-// Export animation variants
+// Export components and animations
 export const layoutAnimations = {
   mobileMenuVariants,
-  menuItemVariants
+  menuItemVariants,
 };
+
+export { Layout, Navbar, Footer, UserMenu };

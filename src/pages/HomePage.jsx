@@ -1,51 +1,72 @@
-import React, { useState, useEffect } from "react";
-import styled from "styled-components";
-import { motion } from "framer-motion";
-import { useWallet } from "../contexts/WalletContext";
-import { GameCard } from "../components/game/GameCard";
-import { Loading } from "../components/common/Loading";
-import { formatAmount } from "../utils/format";
-import { Button } from "../components/common/Button";
-import { toast } from "react-toastify";
-import { ethers } from "ethers";
-import { MotionLink } from '../components/common/MotionLink';
+import React, { useEffect, useState } from 'react';
+import styled from 'styled-components';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
+import { useWallet } from '../contexts/WalletContext';
+import { ethers } from 'ethers';
+import { Button } from '../components/common/Button';
+import { GAME_TOKEN_ABI } from '../contracts/abis';
+import { formatAmount } from '../utils/helpers';
 
 const HomeContainer = styled(motion.div)`
+  padding: 2rem;
   max-width: 1200px;
   margin: 0 auto;
-  padding: 2rem;
-  min-height: calc(100vh - 200px); // Account for header/footer
 `;
 
-const Hero = styled(motion.section)`
+const Hero = styled(motion.div)`
   text-align: center;
-  margin: 4rem 0 6rem;
-  padding: 0 1rem;
+  margin-bottom: 4rem;
+  padding: 4rem 2rem;
+  background: ${({ theme }) => theme.surface};
+  border-radius: 1rem;
+  box-shadow: ${({ theme }) => theme.shadow.lg};
+`;
 
-  h1 {
-    font-size: clamp(2.5rem, 5vw, 4rem);
-    line-height: 1.2;
-    background: ${({ theme }) => theme.gradients.primary};
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    margin-bottom: 1.5rem;
-  }
+const Title = styled(motion.h1)`
+  font-size: 3.5rem;
+  margin-bottom: 1rem;
+  background: ${({ theme }) => theme.gradients.primary};
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
 
-  p {
-    color: ${({ theme }) => theme.text.secondary};
-    font-size: clamp(1rem, 2vw, 1.25rem);
-    max-width: 600px;
-    margin: 0 auto 2rem;
-    line-height: 1.6;
+  @media (max-width: 768px) {
+    font-size: 2.5rem;
   }
 `;
 
-const StatsGrid = styled(motion.section)`
+const Subtitle = styled(motion.p)`
+  font-size: 1.2rem;
+  color: ${({ theme }) => theme.text.secondary};
+  margin-bottom: 2rem;
+`;
+
+const GamesGrid = styled(motion.div)`
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 1.5rem;
-  margin-bottom: 4rem;
-  padding: 0 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 2rem;
+  margin: 2rem 0;
+`;
+
+const GameCard = styled(motion.div)`
+  background: ${({ theme }) => theme.surface};
+  border-radius: 1rem;
+  padding: 2rem;
+  box-shadow: ${({ theme }) => theme.shadow.md};
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  &:hover {
+    transform: translateY(-5px);
+    box-shadow: ${({ theme }) => theme.shadow.lg};
+  }
+`;
+
+const StatsSection = styled(motion.div)`
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 2rem;
+  margin: 4rem 0;
 `;
 
 const StatCard = styled(motion.div)`
@@ -54,394 +75,189 @@ const StatCard = styled(motion.div)`
   border-radius: 1rem;
   text-align: center;
   box-shadow: ${({ theme }) => theme.shadow.md};
-  border: 1px solid ${({ theme }) => theme.border};
-  transition: transform 0.2s ease;
-
-  &:hover {
-    transform: translateY(-4px);
-  }
-
-  h3 {
-    color: ${({ theme }) => theme.text.secondary};
-    font-size: 1rem;
-    margin-bottom: 0.75rem;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-  }
-
-  p {
-    font-size: clamp(1.5rem, 3vw, 2rem);
-    font-weight: bold;
-    background: ${({ theme }) => theme.gradients.primary};
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-  }
 `;
 
-const GamesSection = styled(motion.section)`
-  margin: 4rem 0;
-  padding: 0 1rem;
-
-  h2 {
-    text-align: center;
-    font-size: 2rem;
-    margin-bottom: 2rem;
-    color: ${({ theme }) => theme.text.primary};
-  }
-`;
-
-const GamesGrid = styled.div`
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 2rem;
-`;
-
-const GameItem = styled(motion.div)`
-  position: relative;
-  height: 100%;
-  min-height: 320px;
-  border-radius: 1rem;
-  overflow: hidden;
-  background: ${({ theme }) => theme.surface};
-  border: 1px solid ${({ theme }) => theme.border};
-  transition: all 0.3s ease;
-  cursor: ${({ $disabled }) => ($disabled ? 'not-allowed' : 'pointer')};
-
-  &:hover {
-    transform: ${({ $disabled }) => ($disabled ? 'none' : 'translateY(-4px)')};
-    box-shadow: ${({ theme, $disabled }) => ($disabled ? 'none' : theme.shadow.lg)};
-  }
-`;
-
-const GameContent = styled.div`
-  padding: 2rem;
-  text-align: center;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-
-  .icon {
-    font-size: 4rem;
-    margin-bottom: 1.5rem;
-  }
-
-  h3 {
-    font-size: 1.75rem;
-    margin-bottom: 1rem;
-    color: ${({ theme }) => theme.text.primary};
-  }
-
-  p {
-    color: ${({ theme }) => theme.text.secondary};
-    margin-bottom: 2rem;
-    line-height: 1.6;
-  }
-`;
-
-const GameStatus = styled.span`
-  position: absolute;
-  top: 1rem;
-  right: 1rem;
-  padding: 0.5rem 1rem;
-  border-radius: 9999px;
-  font-size: 0.875rem;
-  font-weight: 500;
-  background: ${({ $live, theme }) =>
-    $live ? theme.success + '20' : theme.warning + '20'};
-  color: ${({ $live, theme }) =>
-    $live ? theme.success : theme.warning};
-`;
-
-const PlayButton = styled(Button)`
-  width: auto;
-  min-width: 150px;
-`;
-
-const CTAButton = styled(motion.button)`
-  padding: 1rem 2.5rem;
-  font-size: 1.2rem;
-  margin-top: 2rem;
-  
-  &:hover {
-    transform: translateY(-2px);
-    box-shadow: ${({ theme }) => theme.shadow.lg};
-  }
-`;
-
-const StatsWrapper = styled(motion.div)`
-  opacity: ${({ $loading }) => ($loading ? 0.7 : 1)};
-  transition: opacity 0.3s ease;
-`;
-
-const LoadingOverlay = styled(motion.div)`
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(4px);
-  border-radius: 1rem;
-`;
-
-const TokenomicsSection = styled(motion.section)`
-  margin: 4rem 0;
-  padding: 0 1rem;
-  text-align: center;
-
-  h2 {
-    font-size: 2rem;
-    margin-bottom: 2rem;
-    color: ${({ theme }) => theme.text.primary};
-  }
-`;
-
-const TokenomicsGrid = styled.div`
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 1.5rem;
-`;
-
-const TokenomicsCard = styled(motion.div)`
+const TokenSection = styled(motion.div)`
   background: ${({ theme }) => theme.surface};
   padding: 2rem;
   border-radius: 1rem;
+  margin: 2rem 0;
   box-shadow: ${({ theme }) => theme.shadow.md};
-  border: 1px solid ${({ theme }) => theme.border};
-
-  h3 {
-    color: ${({ theme }) => theme.text.secondary};
-    margin-bottom: 1rem;
-  }
-
-  p {
-    font-size: 1.5rem;
-    font-weight: bold;
-    background: ${({ theme }) => theme.gradients.primary};
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-  }
 `;
 
-export function HomePage() {
-  const { isConnected, tokenContract: token, diceContract: dice } = useWallet();
-  const [stats, setStats] = useState(null);
-  const [isLoading, setIsLoading] = useState(false);
+const HomePage = () => {
+  const navigate = useNavigate();
+  const { isConnected, address, provider } = useWallet();
+  const [gameStats, setGameStats] = useState({
+    totalPlayers: 0,
+    totalBets: 0,
+    totalVolume: 0,
+  });
+  const [tokenInfo, setTokenInfo] = useState({
+    balance: '0',
+    totalSupply: '0',
+    price: '0',
+  });
 
+  // Load game statistics
   useEffect(() => {
-    const fetchStats = async () => {
-      if (!isConnected || !token || !dice) {
-        setStats(null);
-        setIsLoading(false);
-        return;
-      }
+    const loadGameStats = async () => {
+      if (provider) {
+        try {
+          const diceGameAddress = import.meta.env.VITE_DICE_GAME_ADDRESS;
+          const diceContract = new ethers.Contract(
+            diceGameAddress,
+            ['function getTotalPlayers() view returns (uint256)',
+             'function getTotalBets() view returns (uint256)',
+             'function getTotalVolume() view returns (uint256)'],
+            provider
+          );
 
-      try {
-        setIsLoading(true);
-        
-        const totalSupplyPromise = token.totalSupply?.() || Promise.resolve(BigInt(0));
-        const diceBalancePromise = token.balanceOf?.(dice?.address || ethers.ZeroAddress) || Promise.resolve(BigInt(0));
-        const totalGamesPromise = dice.totalGamesPlayed?.() || Promise.resolve(BigInt(0));
-        const totalPayoutPromise = dice.totalPayoutAmount?.() || Promise.resolve(BigInt(0));
+          const [players, bets, volume] = await Promise.all([
+            diceContract.getTotalPlayers(),
+            diceContract.getTotalBets(),
+            diceContract.getTotalVolume(),
+          ]);
 
-        const [totalSupply, diceBalance, totalGames, totalPayout] = await Promise.all([
-          totalSupplyPromise,
-          diceBalancePromise,
-          totalGamesPromise,
-          totalPayoutPromise,
-        ]);
-
-        if (totalSupply === undefined || diceBalance === undefined || 
-            totalGames === undefined || totalPayout === undefined) {
-          throw new Error("Invalid data received from contracts");
+          setGameStats({
+            totalPlayers: players.toNumber(),
+            totalBets: bets.toNumber(),
+            totalVolume: ethers.utils.formatEther(volume),
+          });
+        } catch (error) {
+          console.error('Error loading game stats:', error);
         }
-
-        setStats({
-          totalSupply: formatAmount(totalSupply),
-          diceBalance: formatAmount(diceBalance),
-          totalGames: formatNumber(totalGames.toString()),
-          totalPayout: formatAmount(totalPayout),
-        });
-      } catch (error) {
-        console.error("Error fetching stats:", error);
-        toast.error("Failed to load game statistics");
-        setStats(null);
-      } finally {
-        setIsLoading(false);
       }
     };
 
-    fetchStats();
-    const interval = setInterval(fetchStats, 30000);
-    return () => {
-      clearInterval(interval);
-      setIsLoading(false);
+    loadGameStats();
+    const interval = setInterval(loadGameStats, 30000); // Refresh every 30s
+    return () => clearInterval(interval);
+  }, [provider]);
+
+  // Load token information
+  useEffect(() => {
+    const loadTokenInfo = async () => {
+      if (provider && address) {
+        try {
+          const tokenAddress = import.meta.env.VITE_TOKEN_ADDRESS;
+          const tokenContract = new ethers.Contract(
+            tokenAddress,
+            GAME_TOKEN_ABI,
+            provider
+          );
+
+          const [balance, totalSupply] = await Promise.all([
+            tokenContract.balanceOf(address),
+            tokenContract.totalSupply(),
+          ]);
+
+          setTokenInfo({
+            balance: ethers.utils.formatEther(balance),
+            totalSupply: ethers.utils.formatEther(totalSupply),
+            price: '1.00', // Add price feed integration if needed
+          });
+        } catch (error) {
+          console.error('Error loading token info:', error);
+        }
+      }
     };
-  }, [isConnected, token, dice]);
+
+    loadTokenInfo();
+    const interval = setInterval(loadTokenInfo, 15000); // Refresh every 15s
+    return () => clearInterval(interval);
+  }, [provider, address]);
+
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.1,
+      },
+    },
+  };
+
+  const itemVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: {
+      opacity: 1,
+      y: 0,
+    },
+  };
 
   return (
     <HomeContainer
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.5 }}
+      variants={containerVariants}
+      initial="hidden"
+      animate="visible"
     >
-      <Hero
-        initial="hidden"
-        animate="visible"
-        variants={{
-          hidden: { opacity: 0 },
-          visible: { opacity: 1 }
-        }}
-      >
-        <motion.h1
-          initial={{ y: 20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ delay: 0.2 }}
-        >
-          GameX
-        </motion.h1>
-        <motion.p
-          initial={{ y: 20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ delay: 0.3 }}
-        >
-          The next generation gaming token with real utility. 
-          Play games and earn rewards - all powered by GameX.
-        </motion.p>
-        <CTAButton
-          as={motion(Link)}
-          to="/token"
-          $variant="primary"
-          animate={{ opacity: 1 }}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-        >
-          Buy GAMEX
-        </CTAButton>
+      <Hero variants={itemVariants}>
+        <Title variants={itemVariants}>
+          Welcome to GameX Platform
+        </Title>
+        <Subtitle variants={itemVariants}>
+          Experience the future of blockchain gaming with provably fair games
+        </Subtitle>
+        {!isConnected && (
+          <Button
+            variant="primary"
+            size="large"
+            onClick={() => navigate('/connect')}
+          >
+            Connect Wallet to Start Playing
+          </Button>
+        )}
       </Hero>
 
-      <StatsWrapper $loading={isLoading}>
-        <StatsGrid
-          initial={{ y: 20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ delay: 0.4 }}
+      <GamesGrid variants={itemVariants}>
+        <GameCard
+          onClick={() => navigate('/dice')}
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
         >
-          {isConnected ? (
-            isLoading ? (
-              <StatCard style={{ gridColumn: '1 / -1', minHeight: '200px' }}>
-                <Loading size="medium" message="Loading token statistics..." />
-              </StatCard>
-            ) : stats ? (
-              <>
-                <StatCard>
-                  <h3>Total Supply</h3>
-                  <p>{stats.totalSupply} GAMEX</p>
-                </StatCard>
-                <StatCard>
-                  <h3>Staking Pool</h3>
-                  <p>{stats.diceBalance} GAMEX</p>
-                </StatCard>
-                <StatCard>
-                  <h3>Token Price</h3>
-                  <p>$0.XX USD</p>
-                </StatCard>
-                <StatCard>
-                  <h3>Market Cap</h3>
-                  <p>$XXX,XXX USD</p>
-                </StatCard>
-              </>
-            ) : (
-              <StatCard style={{ gridColumn: '1 / -1' }}>
-                <h3>Error Loading Stats</h3>
-                <p>Unable to fetch game statistics. Please try again later.</p>
-                <Button 
-                  onClick={() => window.location.reload()} 
-                  $variant="secondary"
-                  style={{ marginTop: '1rem' }}
-                >
-                  Retry
-                </Button>
-              </StatCard>
-            )
-          ) : (
-            <StatCard style={{ gridColumn: '1 / -1' }}>
-              <h3>Connect Wallet</h3>
-              <p>Connect your wallet to view token statistics and start using GameX</p>
-            </StatCard>
-          )}
-        </StatsGrid>
-      </StatsWrapper>
+          <h2>Dice Game</h2>
+          <p>Roll the dice and multiply your tokens</p>
+          <Button variant="secondary">Play Now</Button>
+        </GameCard>
+      </GamesGrid>
 
-      <GamesSection
-        initial={{ y: 20, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ delay: 0.5 }}
-      >
-        <h2>Token Utilities</h2>
-        <GamesGrid>
-          <GameItem>
-            <GameContent>
-              <div className="icon">💰</div>
-              <h3>Staking</h3>
-              <p>Stake your GameX tokens to earn passive rewards and exclusive benefits.</p>
-              <PlayButton as={Link} to="/staking" $variant="primary">
-                Stake Now
-              </PlayButton>
-            </GameContent>
-          </GameItem>
+      <StatsSection variants={itemVariants}>
+        <StatCard variants={itemVariants}>
+          <h3>Total Players</h3>
+          <p>{gameStats.totalPlayers.toLocaleString()}</p>
+        </StatCard>
 
-          <GameItem>
-            <GameContent>
-              <div className="icon">🎮</div>
-              <h3>Gaming</h3>
-              <p>Use GameX tokens to play games and win more tokens through skilled gameplay.</p>
-              <PlayButton as={Link} to="/games" $variant="primary">
-                Play Games
-              </PlayButton>
-            </GameContent>
-          </GameItem>
+        <StatCard variants={itemVariants}>
+          <h3>Total Bets</h3>
+          <p>{gameStats.totalBets.toLocaleString()}</p>
+        </StatCard>
 
-          <GameItem>
-            <GameContent>
-              <div className="icon">🏛️</div>
-              <h3>Governance</h3>
-              <p>Participate in GameX DAO and vote on important protocol decisions.</p>
-              <PlayButton as={Link} to="/governance" $variant="primary">
-                View Proposals
-              </PlayButton>
-            </GameContent>
-          </GameItem>
-        </GamesGrid>
-      </GamesSection>
+        <StatCard variants={itemVariants}>
+          <h3>Total Volume</h3>
+          <p>{formatAmount(gameStats.totalVolume)} GameX</p>
+        </StatCard>
+      </StatsSection>
 
-      <TokenomicsSection>
-        <h2>GameX Tokenomics</h2>
-        <TokenomicsGrid>
-          <TokenomicsCard>
-            <h3>Total Supply</h3>
-            <p>1,000,000,000 GAMEX</p>
-          </TokenomicsCard>
-          <TokenomicsCard>
-            <h3>Staking APY</h3>
-            <p>Up to 25% APY</p>
-          </TokenomicsCard>
-          <TokenomicsCard>
-            <h3>Gaming Rewards</h3>
-            <p>15% of Supply</p>
-          </TokenomicsCard>
-          <TokenomicsCard>
-            <h3>DAO Treasury</h3>
-            <p>10% of Supply</p>
-          </TokenomicsCard>
-        </TokenomicsGrid>
-      </TokenomicsSection>
+      {isConnected && (
+        <TokenSection variants={itemVariants}>
+          <h2>Your GameX Tokens</h2>
+          <div style={{ marginTop: '1rem' }}>
+            <p>Balance: {formatAmount(tokenInfo.balance)} GameX</p>
+            <p>Token Price: ${tokenInfo.price}</p>
+            <p>Total Supply: {formatAmount(tokenInfo.totalSupply)} GameX</p>
+          </div>
+          <Button
+            variant="primary"
+            onClick={() => window.open('https://exchange.gamex.io', '_blank')}
+            style={{ marginTop: '1rem' }}
+          >
+            Get More Tokens
+          </Button>
+        </TokenSection>
+      )}
     </HomeContainer>
   );
-}
+};
 
 export default HomePage;

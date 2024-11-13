@@ -1,8 +1,7 @@
-import React from 'react';
 import styled from 'styled-components';
 import { motion } from 'framer-motion';
 
-const StyledButton = styled(motion.button)`
+export const Button = styled(motion.button)`
   padding: ${({ $size }) => {
     switch ($size) {
       case 'small': return '0.5rem 1rem';
@@ -41,29 +40,14 @@ const StyledButton = styled(motion.button)`
   };
 
   &:disabled {
-    opacity: 0.6;
+    opacity: 0.5;
     cursor: not-allowed;
+  }
+
+  &:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: ${({ theme }) => theme.shadow.sm};
   }
 `;
 
-export const Button = React.forwardRef(({ 
-  children, 
-  $variant = 'primary',
-  $size = 'medium',
-  ...props 
-}, ref) => {
-  return (
-    <StyledButton
-      ref={ref}
-      $variant={$variant}
-      $size={$size}
-      whileHover={{ scale: 1.02 }}
-      whileTap={{ scale: 0.98 }}
-      {...props}
-    >
-      {children}
-    </StyledButton>
-  );
-});
-
-Button.displayName = 'Button';
+export default Button;

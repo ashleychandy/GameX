@@ -1,7 +1,7 @@
 import React from 'react';
 import { RouterProvider } from 'react-router-dom';
 import { ThemeProvider } from 'styled-components';
-import { router } from './routes';
+import { router } from './router';
 import { themes } from './styles/theme';
 import { GlobalStyle } from './styles/GlobalStyle';
 import { WalletProvider } from './contexts/WalletContext';
@@ -20,7 +20,6 @@ function App() {
             position="top-right"
             autoClose={5000}
             hideProgressBar={false}
-            newestOnTop={false}
             closeOnClick
             rtl={false}
             pauseOnFocusLoss

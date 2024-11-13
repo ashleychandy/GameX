@@ -3,18 +3,27 @@ import { toast } from "react-toastify";
 import { format } from "date-fns";
 import { config } from "./config";
 
-// Environment variable validation
-const getEnvVar = (name, fallback = "") => {
-  const value = import.meta.env[name];
-  if (!value && !fallback) {
-    console.warn(
-      `Environment variable ${name} not found, using fallback value`
-    );
-  }
-  return value || fallback;
+// Constants
+export const ERROR_CODES = {
+  USER_REJECTED: 4001,
+  NETWORK_ERROR: -32603,
+  INSUFFICIENT_FUNDS: -32000,
+  UNPREDICTABLE_GAS_LIMIT: -32603,
+  VALIDATION_ERROR: "VALIDATION_ERROR",
+  INVALID_AMOUNT: "INVALID_AMOUNT",
+  INVALID_ADDRESS: "INVALID_ADDRESS",
+  EVENT_FETCH_ERROR: "EVENT_FETCH_ERROR",
+  TRANSACTION_FAILED: "TRANSACTION_FAILED",
+  TIMEOUT: "TIMEOUT",
 };
 
-// Constants
+export const GAME_EVENTS = {
+  GAME_STARTED: "GameStarted",
+  GAME_COMPLETED: "GameCompleted",
+  WINNINGS_CLAIMED: "WinningsClaimed",
+  GAME_CANCELLED: "GameCancelled",
+};
+
 export const CONTRACTS = {
   DICE: config.contracts.dice.address,
   TOKEN: config.contracts.token.address,
@@ -26,85 +35,12 @@ export const CHAIN_CONFIG = {
   EXPLORER_URL: config.network.explorerUrl,
 };
 
-export const VRF_CONFIG = {
-  coordinator: config.chainlink.coordinator,
-  keyHash: config.chainlink.keyHash,
-  subscriptionId: config.chainlink.subscriptionId,
-  callbackGasLimit: config.chainlink.callbackGasLimit,
-  requestConfirmations: config.chainlink.requestConfirmations,
-  numWords: config.chainlink.numWords,
-};
-
 export const GAME_STATES = {
   IDLE: 0,
   ACTIVE: 1,
   PENDING_VRF: 2,
   COMPLETED: 3,
   FAILED: 4,
-};
-
-export const GAME_CONFIG = {
-  PAYOUT_MULTIPLIER: 6,
-  MIN_BET: "0.000000000000000001",
-  MAX_RETRIES: 3,
-  POLLING_INTERVAL: 5000,
-};
-
-export const ERROR_MESSAGES = {
-  INVALID_BET_PARAMETERS: "Invalid bet parameters",
-  INSUFFICIENT_CONTRACT_BALANCE: "Insufficient contract balance",
-  INSUFFICIENT_USER_BALANCE: "Insufficient user balance",
-  TRANSFER_FAILED: "Token transfer failed",
-  GAME_ERROR: "Game error",
-  VRF_ERROR: "VRF error",
-  ROLE_ERROR: "Role error",
-  PAYOUT_CALCULATION_ERROR: "Payout calculation error",
-  NETWORK_ERROR: "Network error occurred",
-  USER_REJECTED: "Transaction rejected by user",
-  CHAIN_MISMATCH: "Please switch to the correct network",
-};
-
-export const EVENTS = {
-  GAME_STARTED: "GameStarted",
-  GAME_COMPLETED: "GameCompleted",
-  RANDOM_WORDS_FULFILLED: "RandomWordsFulfilled",
-};
-
-export const TIME = {
-  POLL_INTERVAL: 10000,
-};
-
-export const ERROR_CODES = {
-  USER_REJECTED: 4001,
-  NETWORK_ERROR: -32603,
-  INSUFFICIENT_FUNDS: -32000,
-  UNPREDICTABLE_GAS_LIMIT: -32603,
-};
-
-export const NETWORKS = {
-  SEPOLIA: {
-    chainId: config.network.chainId,
-    name: "Sepolia",
-    rpcUrl: config.network.rpcUrl,
-    explorer: config.network.explorerUrl,
-    contracts: {
-      dice: config.contracts.dice.address,
-      token: config.contracts.token.address,
-      chainlink: config.chainlink.token,
-    },
-  },
-};
-
-export const DEFAULT_NETWORK = NETWORKS.SEPOLIA;
-export const SUPPORTED_CHAIN_ID = config.network.chainId;
-export const POLLING_INTERVAL = 5000;
-export const TRANSACTION_TIMEOUT = 30000;
-
-export const ROLES = {
-  DEFAULT_ADMIN_ROLE:
-    "0x0000000000000000000000000000000000000000000000000000000000000000",
-  MINTER_ROLE: ethers.keccak256(ethers.toUtf8Bytes("MINTER_ROLE")),
-  BURNER_ROLE: ethers.keccak256(ethers.toUtf8Bytes("BURNER_ROLE")),
 };
 
 export const UI_STATES = {
@@ -155,12 +91,24 @@ export const formatGameStatus = (status) => {
   return status.replace(/_/g, " ").toLowerCase();
 };
 
+export const formatCurrency = (value) => {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD'
+  }).format(value);
+};
+
 // Game State Functions
 export const getGameState = (game, hasPendingRequest) => {
   if (!game?.isActive) return "PENDING";
   if (hasPendingRequest) return "WAITING_FOR_RANDOM";
   if (game.result !== "0") return "COMPLETED";
   return "READY_TO_RESOLVE";
+};
+
+export const calculateWinRate = (wins, total) => {
+  if (!total) return 0;
+  return ((wins / total) * 100).toFixed(1);
 };
 
 export const calculateMaxBet = (contractBalance) => {
@@ -172,11 +120,6 @@ export const calculateMaxBet = (contractBalance) => {
     console.error("Error calculating max bet:", error);
     return ethers.parseEther("0");
   }
-};
-
-export const calculateWinRate = (wins, total) => {
-  if (!total) return 0;
-  return ((wins / total) * 100).toFixed(1);
 };
 
 // Data Formatting Functions
@@ -210,20 +153,6 @@ export const formatStats = (stats) => {
     };
   } catch (error) {
     console.error("Error formatting stats:", error);
-    return null;
-  }
-};
-
-export const formatBetHistory = (bet) => {
-  try {
-    return {
-      chosenNumber: bet.chosenNumber?.toString() || "0",
-      rolledNumber: bet.rolledNumber?.toString() || "0",
-      amount: formatAmount(bet.amount || "0"),
-      timestamp: bet.timestamp?.toString() || "0",
-    };
-  } catch (error) {
-    console.error("Error formatting bet history:", error);
     return null;
   }
 };
@@ -286,7 +215,7 @@ export const estimateGasWithBuffer = async (
 ) => {
   try {
     const gasEstimate = await contract.estimateGas[method](...args, options);
-    return gasEstimate.mul(120).div(100); // Add 20% buffer
+    return gasEstimate.mul(120).div(100);
   } catch (error) {
     console.error("Gas estimation failed:", error);
     return ethers.BigNumber.from("500000");
@@ -381,17 +310,132 @@ export const retryOperation = async (
   throw lastError;
 };
 
-export const validateGameData = (data) => {
-  if (!data || typeof data !== "object") {
-    throw new Error("Invalid game data format");
+// Chainlink VRF Configuration
+export const VRF_CONFIG = {
+  coordinator: config.chainlink.coordinator,
+  keyHash: config.chainlink.keyHash,
+  subscriptionId: config.chainlink.subscriptionId,
+  callbackGasLimit: config.chainlink.callbackGasLimit,
+  requestConfirmations: config.chainlink.requestConfirmations,
+  numWords: config.chainlink.numWords
+};
+
+// Game Configuration
+export const GAME_CONFIG = {
+  PAYOUT_MULTIPLIER: 6,
+  MIN_BET: "0.000000000000000001",
+  MAX_RETRIES: 3,
+  POLLING_INTERVAL: 5000
+};
+
+// Additional Network Constants
+export const SUPPORTED_CHAIN_ID = config.network.chainId;
+export const DEFAULT_NETWORK = NETWORKS.SEPOLIA;
+export const POLLING_INTERVAL = 5000; // 5 seconds
+export const TRANSACTION_TIMEOUT = 30000; // 30 seconds
+
+// Network Configurations
+export const NETWORKS = {
+  SEPOLIA: {
+    chainId: config.network.chainId,
+    name: 'Sepolia',
+    rpcUrl: config.network.rpcUrl,
+    explorer: config.network.explorerUrl,
+    contracts: {
+      dice: config.contracts.dice.address,
+      token: config.contracts.token.address,
+      chainlink: config.chainlink.token
+    }
   }
+};
 
-  const requiredFields = ["isActive", "chosenNumber", "amount", "status"];
-  const missingFields = requiredFields.filter((field) => !(field in data));
+// Roles
+export const ROLES = {
+  DEFAULT_ADMIN_ROLE: '0x0000000000000000000000000000000000000000000000000000000000000000',
+  MINTER_ROLE: ethers.keccak256(ethers.toUtf8Bytes("MINTER_ROLE")),
+  BURNER_ROLE: ethers.keccak256(ethers.toUtf8Bytes("BURNER_ROLE"))
+};
 
-  if (missingFields.length > 0) {
-    throw new Error(`Missing required fields: ${missingFields.join(", ")}`);
+// Transaction Types
+export const TRANSACTION_TYPES = {
+  APPROVE: 'APPROVE',
+  PLAY: 'PLAY',
+  RESOLVE: 'RESOLVE'
+};
+
+// Error Messages
+export const ERROR_MESSAGES = {
+  INVALID_BET_PARAMETERS: "Invalid bet parameters",
+  INSUFFICIENT_CONTRACT_BALANCE: "Insufficient contract balance",
+  INSUFFICIENT_USER_BALANCE: "Insufficient user balance",
+  TRANSFER_FAILED: "Token transfer failed",
+  GAME_ERROR: "Game error",
+  VRF_ERROR: "VRF error",
+  ROLE_ERROR: "Role error",
+  PAYOUT_CALCULATION_ERROR: "Payout calculation error",
+  NETWORK_ERROR: "Network error occurred",
+  USER_REJECTED: "Transaction rejected by user",
+  CHAIN_MISMATCH: "Please switch to the correct network",
+};
+
+// Game Error Messages
+export const GAME_ERROR_MESSAGES = {
+  GAME_IN_PROGRESS: "A game is already in progress",
+  INVALID_BET: "Invalid bet parameters",
+  INSUFFICIENT_BALANCE: "Insufficient balance",
+  VRF_ERROR: "Random number generation failed",
+  INVALID_GAME_STATE: "Invalid game state"
+};
+
+// Environment variable validation
+export const getEnvVar = (name, fallback = "") => {
+  const value = import.meta.env[name];
+  if (!value && !fallback) {
+    console.warn(`Environment variable ${name} not found, using fallback value`);
   }
+  return value || fallback;
+};
 
-  return data;
+// Add after existing validation functions
+export const validateAmount = (amount, min, max) => {
+  try {
+    const parsedAmount = ethers.parseEther(amount.toString());
+    const parsedMin = ethers.parseEther(min.toString());
+    const parsedMax = ethers.parseEther(max.toString());
+
+    if (parsedAmount.lt(parsedMin)) {
+      throw new AppError(`Amount must be at least ${min}`, ERROR_CODES.INVALID_AMOUNT);
+    }
+
+    if (parsedAmount.gt(parsedMax)) {
+      throw new AppError(`Amount cannot exceed ${max}`, ERROR_CODES.INVALID_AMOUNT);
+    }
+
+    return parsedAmount;
+  } catch (error) {
+    if (error instanceof AppError) throw error;
+    throw new AppError('Invalid amount format', ERROR_CODES.INVALID_AMOUNT);
+  }
+};
+
+export const validateAddress = (address) => {
+  if (!address || !ethers.isAddress(address)) {
+    throw new AppError('Invalid address format', ERROR_CODES.INVALID_ADDRESS);
+  }
+  return address;
+};
+
+// Replace existing gas estimation
+export const estimateGas = async (contract, method, args = [], options = {}) => {
+  const { gasLimitMultiplier = 1.2 } = options;
+  
+  try {
+    const estimatedGas = await contract[method].estimateGas(...args);
+    return ethers.BigNumber.from(estimatedGas)
+      .mul(Math.floor(gasLimitMultiplier * 100))
+      .div(100);
+  } catch (error) {
+    console.warn(`Gas estimation failed for ${method}:`, error);
+    return ethers.BigNumber.from(500000);
+  }
 };

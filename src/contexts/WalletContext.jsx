@@ -7,39 +7,13 @@ import React, {
 } from "react";
 import { ethers } from "ethers";
 import { toast } from "react-toastify";
-import { SUPPORTED_NETWORKS } from "../utils/constants";
-import { handleError } from "../utils/errorHandling";
+import { NETWORK_CONFIG } from '../utils/constants';
 
-const SUPPORTED_NETWORKS = {
-  1: "Ethereum Mainnet",
-  5: "Goerli Testnet",
-  // Add other networks as needed
-};
-
-export const WalletContext = createContext({});
+export const WalletContext = createContext();
 
 export function WalletProvider({ children }) {
+  const [account, setAccount] = useState(null);
   const [provider, setProvider] = useState(null);
-  const [signer, setSigner] = useState(null);
-  const [address, setAddress] = useState(null);
-  const [chainId, setChainId] = useState(null);
-  const [isConnected, setIsConnected] = useState(false);
-  const [contracts, setContracts] = useState({
-    dice: null,
-    token: null
-  });
-
-  const handleError = useCallback((error) => {
-    console.error("Wallet error:", error);
-
-    if (error.code === 4001) {
-      toast.error("Transaction rejected by user");
-    } else if (error.code === -32002) {
-      toast.error("Please unlock your wallet");
-    } else {
-      toast.error(error.message || "An error occurred");
-    }
-  }, []);
 
   const connectWallet = useCallback(async () => {
     if (!window.ethereum) {
@@ -48,82 +22,28 @@ export function WalletProvider({ children }) {
     }
 
     try {
-      setIsConnecting(true);
-
       const chainId = await window.ethereum.request({ method: "eth_chainId" });
       const currentChainId = parseInt(chainId, 16);
 
-      if (!SUPPORTED_NETWORKS[currentChainId]) {
-        throw new Error("Please switch to a supported network");
+      if (currentChainId !== NETWORK_CONFIG.chainId) {
+        throw new Error("Please switch to Sepolia network");
       }
 
-      const ethProvider = new ethers.BrowserProvider(window.ethereum);
-      const accounts = await ethProvider.send("eth_requestAccounts", []);
-      const ethSigner = await ethProvider.getSigner();
-
-      setProvider(ethProvider);
-      setSigner(ethSigner);
-      setAddress(accounts[0]);
-      setChainId(currentChainId);
-
-      toast.success("Wallet connected successfully!");
+      const provider = new ethers.providers.Web3Provider(window.ethereum);
+      const accounts = await provider.send("eth_requestAccounts", []);
+      
+      setAccount(accounts[0]);
+      setProvider(provider);
     } catch (error) {
-      handleError(error);
-    } finally {
-      setIsConnecting(false);
+      toast.error(error.message);
     }
-  }, [handleError]);
-
-  const disconnectWallet = useCallback(() => {
-    setProvider(null);
-    setSigner(null);
-    setAddress(null);
-    setChainId(null);
-    toast.info("Wallet disconnected");
   }, []);
-
-  useEffect(() => {
-    if (!window.ethereum) return;
-
-    const handleNetworkChange = () => {
-      window.location.reload();
-    };
-
-    const handleAccountsChange = (accounts) => {
-      if (accounts.length === 0) {
-        disconnectWallet();
-      } else {
-        setAddress(accounts[0]);
-      }
-    };
-
-    window.ethereum.on("chainChanged", handleNetworkChange);
-    window.ethereum.on("accountsChanged", handleAccountsChange);
-
-    // Auto-connect if previously connected
-    const autoConnect = async () => {
-      if (localStorage.getItem("shouldAutoConnect") === "true") {
-        await connectWallet();
-      }
-    };
-    autoConnect();
-
-    return () => {
-      window.ethereum.removeListener("chainChanged", handleNetworkChange);
-      window.ethereum.removeListener("accountsChanged", handleAccountsChange);
-    };
-  }, [connectWallet, disconnectWallet]);
 
   return (
     <WalletContext.Provider value={{
       provider,
-      signer,
-      address,
-      chainId,
-      isConnected,
-      contracts,
-      connectWallet,
-      disconnectWallet
+      account,
+      connectWallet
     }}>
       {children}
     </WalletContext.Provider>
