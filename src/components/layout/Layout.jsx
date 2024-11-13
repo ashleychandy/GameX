@@ -4,6 +4,7 @@ import { Outlet, useLocation } from 'react-router-dom';
 import { Navbar } from './Navbar';
 import { Footer } from './Footer';
 import { getRouteMetadata } from '../../routes';
+import { useTheme } from '../../hooks/useTheme';
 
 const LayoutContainer = styled.div`
   min-height: 100vh;

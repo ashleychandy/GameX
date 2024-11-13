@@ -3,6 +3,7 @@ import { ethers } from 'ethers';
 import { toast } from 'react-toastify';
 import { handleError } from '../utils/errorHandling';
 import { SUPPORTED_CHAIN_ID } from '../utils/constants';
+import { executeContractTransaction } from '../utils/contractHelpers';
 import DiceABI from '../abi/Dice.json';
 import TokenABI from '../abi/Token.json';
 import { NETWORKS } from '../utils/constants';

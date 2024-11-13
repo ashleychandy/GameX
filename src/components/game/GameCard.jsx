@@ -1,6 +1,8 @@
 import React from 'react';
 import styled from 'styled-components';
 import { motion } from 'framer-motion';
+import { Button } from '../common/Button';
+import { LoadingSpinner } from '../common/LoadingSpinner';
 
 const Card = styled(motion.div)`
   background: ${({ theme }) => theme.surface};
