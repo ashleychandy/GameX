@@ -1,6 +1,7 @@
 import React from 'react'
 import PropTypes from 'prop-types'
 import styled from 'styled-components'
+import { motion } from 'framer-motion'
 
 const StyledButton = styled(motion.button)`
   padding: ${({ $size }) => {
@@ -39,6 +40,16 @@ const StyledButton = styled(motion.button)`
   border: 2px solid ${({ theme, $variant }) => 
     $variant === 'outline' ? theme.primary : 'transparent'
   };
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  &:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: ${({ theme }) => theme.shadow.sm};
+  }
 `;
 
 const Button = ({ 
@@ -64,4 +75,4 @@ Button.propTypes = {
   size: PropTypes.oneOf(['small', 'medium', 'large'])
 };
 
-export default Button 
+export default Button; 
