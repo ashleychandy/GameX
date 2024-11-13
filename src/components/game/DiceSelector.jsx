@@ -1,6 +1,7 @@
-import React from 'react';
-import styled from 'styled-components';
-import { motion } from 'framer-motion';
+import React from "react";
+import styled from "styled-components";
+import { motion } from "framer-motion";
+import { GAME_CONFIG } from "../../utils/constants";
 
 const SelectorContainer = styled.div`
   display: grid;
@@ -12,16 +13,16 @@ const SelectorContainer = styled.div`
 const DiceButton = styled(motion.button)`
   padding: 1rem;
   border-radius: 8px;
-  border: 2px solid ${({ theme, $selected }) => 
-    $selected ? theme.primary : theme.border};
-  background: ${({ theme, $selected }) => 
-    $selected ? theme.primary : 'transparent'};
-  color: ${({ theme, $selected }) => 
+  border: 2px solid
+    ${({ theme, $selected }) => ($selected ? theme.primary : theme.border)};
+  background: ${({ theme, $selected }) =>
+    $selected ? theme.primary : "transparent"};
+  color: ${({ theme, $selected }) =>
     $selected ? theme.text.inverse : theme.text.primary};
   font-size: 1.25rem;
   font-weight: 600;
-  cursor: ${({ disabled }) => disabled ? 'not-allowed' : 'pointer'};
-  opacity: ${({ disabled }) => disabled ? 0.5 : 1};
+  cursor: ${({ disabled }) => (disabled ? "not-allowed" : "pointer")};
+  opacity: ${({ disabled }) => (disabled ? 0.5 : 1)};
   transition: all 0.2s ease;
 
   &:hover:not(:disabled) {
@@ -33,7 +34,7 @@ const DiceButton = styled(motion.button)`
 export function DiceSelector({ selectedNumber, onSelect, disabled }) {
   return (
     <SelectorContainer>
-      {[1, 2, 3, 4, 5, 6].map(number => (
+      {[1, 2, 3, 4, 5, 6].map((number) => (
         <DiceButton
           key={number}
           $selected={selectedNumber === number}
@@ -46,4 +47,4 @@ export function DiceSelector({ selectedNumber, onSelect, disabled }) {
       ))}
     </SelectorContainer>
   );
-} 
+}

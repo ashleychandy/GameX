@@ -1,12 +1,8 @@
 import React from 'react';
 import styled from 'styled-components';
 import { motion } from 'framer-motion';
-import { Link } from 'react-router-dom';
 
-// Create a motion button as the base
-const MotionButton = motion.button;
-
-const StyledButton = styled(MotionButton)`
+const StyledButton = styled(motion.button)`
   padding: ${({ $size }) => {
     switch ($size) {
       case 'small': return '0.5rem 1rem';
@@ -47,11 +43,6 @@ const StyledButton = styled(MotionButton)`
   &:disabled {
     opacity: 0.6;
     cursor: not-allowed;
-  }
-
-  &:focus-visible {
-    outline: 2px solid ${({ theme }) => theme.primary};
-    outline-offset: 2px;
   }
 `;
 

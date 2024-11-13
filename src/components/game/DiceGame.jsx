@@ -1,21 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { motion } from 'framer-motion';
-import { ethers } from 'ethers';
-import { toast } from 'react-toastify';
 import { useWallet } from '../../contexts/WalletContext';
 import { useDiceGame } from '../../hooks/useDiceGame';
+import { useGameEvents } from '../../hooks/useGameEvents';
 import { DiceSelector } from './DiceSelector';
 import { BetInput } from './BetInput';
 import { GameStatus } from './GameStatus';
 import { GameHistory } from './GameHistory';
 import { UserStats } from './UserStats';
 import { LoadingOverlay } from '../common/LoadingOverlay';
-import { ErrorBoundary } from '../common/ErrorBoundary';
-import { validateBetAmount, calculateMaxBet } from '../../utils/gameCalculations';
-import { GAME_STATES, ERROR_MESSAGES } from '../../utils/constants';
-import { handleError } from '../../utils/errorHandling';
-import { CONFIG } from '../../config';
+import { WalletPrompt } from '../common/WalletPrompt';
+import { toast } from 'react-toastify';
 
 const GameContainer = styled(motion.div)`
   max-width: 1200px;
@@ -50,196 +46,102 @@ const Button = styled(motion.button)`
   opacity: ${({ disabled }) => disabled ? 0.5 : 1};
 `;
 
-const StatsContainer = styled.div`
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 1rem;
-  margin-top: 2rem;
-`;
-
 export function DiceGame() {
-  const { address, isConnected } = useWallet();
+  const { address } = useWallet();
   const {
     gameData,
-    previousBets,
-    pendingRequest,
-    userData,
-    requestDetails,
+    userStats,
+    history,
+    requestInfo,
+    canStartGame,
     loadingStates,
-    placeBet,
+    playDice,
     resolveGame,
-    recoverStuckGame,
-    refreshGameState
+    updateGameState
   } = useDiceGame();
 
   const [selectedNumber, setSelectedNumber] = useState(1);
   const [betAmount, setBetAmount] = useState('');
-  const [isProcessing, setIsProcessing] = useState(false);
 
-  // Validate contract initialization
-  useEffect(() => {
-    if (!isConnected) {
-      toast.error(ERROR_MESSAGES.WALLET_NOT_CONNECTED);
-      return;
-    }
-  }, [isConnected]);
+  // Set up event listeners
+  useGameEvents(updateGameState);
 
-  // Auto-refresh game state
-  useEffect(() => {
-    const interval = setInterval(refreshGameState, 10000);
-    return () => clearInterval(interval);
-  }, [refreshGameState]);
+  // Handle wallet not connected
+  if (!address) {
+    return <WalletPrompt />;
+  }
 
   const handlePlay = async () => {
     try {
-      setIsProcessing(true);
-
-      // Validate network
-      const network = await provider.getNetwork();
-      if (network.chainId !== CONFIG.network.chainId) {
-        throw new Error(`Please switch to ${CONFIG.network.chainId} network`);
-      }
-
-      // Validate wallet connection
-      if (!address) {
-        throw new Error(ERROR_MESSAGES.WALLET_NOT_CONNECTED);
-      }
-
-      // Validate bet amount
-      const validationError = validateBetAmount(betAmount, userData?.minBet, userData?.maxBet);
-      if (validationError) {
-        throw new Error(validationError);
-      }
-
-      // Place bet
-      const tx = await placeBet(selectedNumber, betAmount);
-      
-      // Track transaction
-      toast.info('Transaction submitted...', { toastId: tx.hash });
-      
-      const receipt = await tx.wait();
-      
-      if (receipt.status === 1) {
-        toast.success('Bet placed successfully!');
-        setBetAmount('');
-        await refreshGameState();
-      } else {
-        throw new Error('Transaction failed');
-      }
-
+      await playDice(selectedNumber, betAmount);
+      setBetAmount(''); // Reset bet amount after successful play
     } catch (error) {
-      const { message } = handleError(error);
-      toast.error(message);
-    } finally {
-      setIsProcessing(false);
+      console.error('Error playing dice:', error);
     }
   };
 
   const handleResolve = async () => {
     try {
-      setIsProcessing(true);
       await resolveGame();
-      await refreshGameState();
     } catch (error) {
-      const { message } = handleError(error);
-      toast.error(message);
-    } finally {
-      setIsProcessing(false);
+      console.error('Error resolving game:', error);
     }
   };
-
-  const handleRecover = async () => {
-    try {
-      setIsProcessing(true);
-      await recoverStuckGame();
-      await refreshGameState();
-    } catch (error) {
-      const { message } = handleError(error);
-      toast.error(message);
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  const isGameActive = gameData?.isActive;
-  const isPending = pendingRequest || isProcessing;
-  const canPlay = !isGameActive && !isPending && isConnected;
-
-  if (loadingStates.fetchingData) {
-    return <LoadingOverlay message="Loading game data..." />;
-  }
 
   return (
-    <ErrorBoundary>
-      <GameContainer
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-      >
+    <GameContainer
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+    >
+      <LoadingOverlay visible={loadingStates.fetchingData} />
+      
+      <GameControls>
         <GameStatus 
           gameData={gameData}
-          pendingRequest={pendingRequest}
-          requestDetails={requestDetails}
+          requestInfo={requestInfo}
         />
-
-        <GameControls>
-          <DiceSelector 
-            selectedNumber={selectedNumber}
-            onSelect={setSelectedNumber}
-            disabled={!canPlay}
-          />
-
-          <BetInput
-            value={betAmount}
-            onChange={setBetAmount}
-            disabled={!canPlay}
-            minBet={userData?.minBet}
-            maxBet={userData?.maxBet}
-          />
-
-          <ButtonGroup>
+        
+        <DiceSelector 
+          selectedNumber={selectedNumber}
+          onSelect={setSelectedNumber}
+          disabled={!canStartGame || loadingStates.placingBet}
+        />
+        
+        <BetInput
+          value={betAmount}
+          onChange={setBetAmount}
+          disabled={!canStartGame || loadingStates.placingBet}
+        />
+        
+        <ButtonGroup>
+          <Button 
+            onClick={handlePlay}
+            disabled={!canStartGame || loadingStates.placingBet}
+            whileTap={{ scale: 0.95 }}
+          >
+            Place Bet
+          </Button>
+          
+          {gameData?.isActive && (
             <Button
-              $variant="primary"
-              disabled={!canPlay || isProcessing}
-              onClick={handlePlay}
-              whileHover={canPlay && { scale: 1.05 }}
-              whileTap={canPlay && { scale: 0.95 }}
+              onClick={handleResolve}
+              disabled={loadingStates.resolving}
+              whileTap={{ scale: 0.95 }}
+              $variant="secondary"
             >
-              {isProcessing ? 'Processing...' : 'Play'}
+              Resolve Game
             </Button>
+          )}
+        </ButtonGroup>
+      </GameControls>
 
-            {isGameActive && (
-              <Button
-                disabled={isProcessing}
-                onClick={handleResolve}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-              >
-                {isProcessing ? 'Resolving...' : 'Resolve Game'}
-              </Button>
-            )}
-
-            {pendingRequest && (
-              <Button
-                disabled={isProcessing}
-                onClick={handleRecover}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-              >
-                {isProcessing ? 'Recovering...' : 'Recover Game'}
-              </Button>
-            )}
-          </ButtonGroup>
-        </GameControls>
-
-        <StatsContainer>
-          <UserStats stats={userData} />
-          <GameHistory 
-            bets={previousBets}
-            onRefresh={refreshGameState}
-          />
-        </StatsContainer>
-      </GameContainer>
-    </ErrorBoundary>
+      <UserStats stats={userStats} />
+      
+      <GameHistory 
+        history={history} 
+        onRefresh={updateGameState}
+      />
+    </GameContainer>
   );
 }

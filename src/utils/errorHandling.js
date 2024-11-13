@@ -1,100 +1,87 @@
-import { ERROR_CODES, ERROR_MESSAGES } from './constants';
-import { CONFIG } from '../config';
+import { toast } from "react-toastify";
+import { ERROR_CODES } from "./constants";
 
-export class AppError extends Error {
-  constructor(message, code, details = {}) {
-    super(message);
-    this.name = 'AppError';
-    this.code = code;
-    this.details = details;
-  }
-}
+export const ERROR_CODES = {
+  USER_REJECTED: 4001,
+  NETWORK_ERROR: -32603,
+  INSUFFICIENT_FUNDS: -32000,
+  UNPREDICTABLE_GAS_LIMIT: -32603,
+};
 
 export const handleError = (error) => {
-  // Network errors
-  if (error.code === 'NETWORK_ERROR') {
-    return {
-      message: `Unable to connect to ${CONFIG.network.rpcUrl}`,
-      code: 'NETWORK_ERROR'
-    };
-  }
-
-  // Wrong network
-  if (error.code === 'WRONG_NETWORK') {
-    return {
-      message: `Please switch to ${CONFIG.network.chainId} network`,
-      code: 'WRONG_NETWORK'
-    };
-  }
-
-  // Contract-specific errors
-  if (error.message.includes('user rejected transaction')) {
-    return {
-      message: 'Transaction rejected by user',
-      code: 'USER_REJECTED'
-    };
-  }
-
-  if (error.message.includes('insufficient funds')) {
-    return {
-      message: 'Insufficient funds for transaction',
-      code: 'INSUFFICIENT_FUNDS'
-    };
-  }
-
-  if (error.message.includes('game already active')) {
-    return {
-      message: 'You already have an active game',
-      code: 'GAME_ACTIVE'
-    };
-  }
-
-  if (error.message.includes('invalid bet amount')) {
-    return {
-      message: 'Invalid bet amount',
-      code: 'INVALID_BET'
-    };
-  }
-
-  // Fallback
-  return {
-    message: error.message || 'An unknown error occurred',
-    code: 'UNKNOWN_ERROR'
-  };
-};
-
-export const isUserRejection = (error) => {
-  return error?.code === 4001 || // MetaMask
-         error?.code === -32603; // Other wallets
-};
-
-export const handleContractError = (error) => {
-  // Check for arithmetic errors
-  if (error.message.includes('arithmetic underflow or overflow') ||
-      error.message.includes('reverted') && error.message.includes('arithmetic')) {
-    return {
-      message: 'Invalid amount. Please check your input values and try again.',
-      code: 'ARITHMETIC_ERROR'
-    };
-  }
-
-  if (error.message.includes('execution reverted')) {
-    return {
-      message: 'Transaction failed. Please check your inputs and try again.',
-      code: 'EXECUTION_REVERTED'
-    };
-  }
+  console.error("Error:", error);
 
   // Handle user rejection
-  if (error.code === 4001) {
+  if (error.code === ERROR_CODES.USER_REJECTED) {
     return {
-      message: 'Transaction rejected by user',
-      code: 'USER_REJECTED'
+      message: "Transaction rejected by user",
+      code: "USER_REJECTED",
     };
   }
 
+  // Handle network errors
+  if (error.code === ERROR_CODES.NETWORK_ERROR) {
+    return {
+      message: "Network error occurred. Please check your connection.",
+      code: "NETWORK_ERROR",
+    };
+  }
+
+  // Handle insufficient funds
+  if (error.code === ERROR_CODES.INSUFFICIENT_FUNDS) {
+    return {
+      message: "Insufficient funds for transaction",
+      code: "INSUFFICIENT_FUNDS",
+    };
+  }
+
+  // Handle contract errors
+  if (error.message?.includes("execution reverted")) {
+    const reason = error.data?.message || "Transaction failed";
+    return {
+      message: reason,
+      code: "CONTRACT_ERROR",
+    };
+  }
+
+  // Handle gas estimation failures
+  if (error.code === ERROR_CODES.UNPREDICTABLE_GAS_LIMIT) {
+    return {
+      message: "Transaction would fail. Check your inputs.",
+      code: "GAS_ESTIMATE_FAILED",
+    };
+  }
+
+  // Handle other errors
   return {
-    message: error.message || 'An unexpected error occurred',
-    code: 'UNKNOWN_ERROR'
+    message: error.message || "An unknown error occurred",
+    code: "UNKNOWN_ERROR",
   };
+};
+
+export const showError = (error) => {
+  const errorDetails = handleError(error);
+  toast.error(errorDetails.message);
+  return errorDetails;
+};
+
+export const retryOperation = async (
+  operation,
+  maxRetries = 3,
+  delay = 1000
+) => {
+  let lastError;
+
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      return await operation();
+    } catch (error) {
+      lastError = error;
+      if (i < maxRetries - 1) {
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
+    }
+  }
+
+  throw lastError;
 };

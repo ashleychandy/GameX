@@ -1,107 +1,141 @@
-import React from 'react';
+import React, { useState } from 'react';
 import styled from 'styled-components';
 import { motion } from 'framer-motion';
 import { useWallet } from '../../contexts/WalletContext';
-import { useGame } from '../../hooks/useGame';
-import { useContractState } from '../../hooks/useContractState';
-import { WalletPrompt } from '../../components/common/WalletPrompt';
-import { GameCard } from '../../components/game/GameCard';
+import { useDiceGame } from '../../hooks/useDiceGame';
 import { DiceSelector } from '../../components/game/DiceSelector';
 import { BetInput } from '../../components/game/BetInput';
 import { GameStatus } from '../../components/game/GameStatus';
 import { GameHistory } from '../../components/game/GameHistory';
 import { UserStats } from '../../components/game/UserStats';
-import { Loading } from '../../components/common/Loading';
-import { ErrorHandler } from '../../components/common/ErrorHandler';
+import { LoadingOverlay } from '../../components/common/LoadingOverlay';
+import { WalletPrompt } from '../../components/common/WalletPrompt';
+import { toast } from 'react-toastify';
 
-const PageContainer = styled(motion.div)`
+const GameContainer = styled(motion.div)`
   max-width: 1200px;
   margin: 0 auto;
   padding: 2rem;
 `;
 
-const GameContainer = styled(GameCard)`
-  margin-bottom: 2rem;
+const GameControls = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  padding: 2rem;
+  background: ${({ theme }) => theme.surface2};
+  border-radius: 12px;
 `;
 
-const GameGrid = styled.div`
-  display: grid;
-  grid-template-columns: 2fr 1fr;
-  gap: 2rem;
-  
-  @media (max-width: 1024px) {
-    grid-template-columns: 1fr;
-  }
+const ButtonGroup = styled.div`
+  display: flex;
+  gap: 1rem;
+  margin-top: 1rem;
 `;
 
-const DiceGamePage = () => {
-  const { isConnected, address } = useWallet();
-  const { 
-    gameData, 
-    previousBets, 
-    pendingRequest,
-    userData,
-    requestDetails,
-    canStart,
-    isLoading, 
-    error, 
-    refreshGameState 
-  } = useGame();
-  const { state: contractState } = useContractState();
+const Button = styled(motion.button)`
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  border: none;
+  background: ${({ theme, $variant }) => 
+    $variant === 'primary' ? theme.primary : theme.surface3};
+  color: ${({ theme }) => theme.text.primary};
+  font-weight: 600;
+  cursor: ${({ disabled }) => disabled ? 'not-allowed' : 'pointer'};
+  opacity: ${({ disabled }) => disabled ? 0.5 : 1};
+`;
 
-  if (!isConnected) {
+export function DiceGame() {
+  const { address } = useWallet();
+  const {
+    gameData,
+    userStats,
+    history,
+    requestInfo,
+    canStartGame,
+    loadingStates,
+    playDice,
+    resolveGame
+  } = useDiceGame();
+
+  const [selectedNumber, setSelectedNumber] = useState(1);
+  const [betAmount, setBetAmount] = useState('');
+
+  if (!address) {
     return <WalletPrompt />;
   }
 
-  if (isLoading) {
-    return <Loading />;
-  }
+  const handlePlay = async () => {
+    if (!selectedNumber || !betAmount) {
+      toast.error('Please select a number and enter bet amount');
+      return;
+    }
 
-  if (error) {
-    return <ErrorHandler error={error} />;
-  }
-
-  const canPlay = !gameData?.isActive && !contractState.paused && canStart && !pendingRequest;
+    try {
+      await playDice(selectedNumber, betAmount);
+      setBetAmount('');
+    } catch (error) {
+      console.error('Error playing dice:', error);
+    }
+  };
 
   return (
-    <PageContainer
+    <GameContainer
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
     >
-      <GameGrid>
-        <GameContainer>
-          <GameStatus 
-            gameData={gameData}
-            contractState={contractState}
-            requestDetails={requestDetails}
-            pendingRequest={pendingRequest}
-          />
-          <DiceSelector 
-            selectedNumber={gameData?.chosenNumber}
-            disabled={!canPlay}
-          />
-          <BetInput
-            disabled={!canPlay}
-            maxBet={contractState.maxBet}
-          />
-          {userData && (
-            <UserStats 
-              userData={userData}
-              playerStats={contractState.playerStats}
-            />
-          )}
-        </GameContainer>
-        
-        <GameHistory 
-          previousBets={previousBets}
-          onRefresh={refreshGameState}
-          isLoading={isLoading}
-          historySize={contractState.defaultHistorySize}
+      <LoadingOverlay visible={loadingStates.fetchingData} />
+      
+      <GameControls>
+        <GameStatus 
+          gameData={gameData}
+          requestInfo={requestInfo}
         />
-      </GameGrid>
-    </PageContainer>
-  );
-};
+        
+        <DiceSelector 
+          selectedNumber={selectedNumber}
+          onSelect={setSelectedNumber}
+          disabled={!canStartGame || loadingStates.placingBet}
+        />
+        
+        <BetInput
+          value={betAmount}
+          onChange={setBetAmount}
+          disabled={!canStartGame || loadingStates.placingBet}
+          maxBet={gameData?.maxBet}
+        />
+        
+        <ButtonGroup>
+          <Button 
+            onClick={handlePlay}
+            disabled={!canStartGame || loadingStates.placingBet}
+            whileTap={{ scale: 0.95 }}
+          >
+            {loadingStates.placingBet ? 'Placing Bet...' : 'Place Bet'}
+          </Button>
+          
+          {gameData?.isActive && (
+            <Button
+              onClick={resolveGame}
+              disabled={loadingStates.resolving}
+              whileTap={{ scale: 0.95 }}
+              $variant="secondary"
+            >
+              {loadingStates.resolving ? 'Resolving...' : 'Resolve Game'}
+            </Button>
+          )}
+        </ButtonGroup>
+      </GameControls>
 
-export default DiceGamePage; 
+      <UserStats stats={userStats} />
+      
+      <GameHistory 
+        history={history}
+        isLoading={loadingStates.fetchingData}
+      />
+    </GameContainer>
+  );
+}
+
+export default DiceGame; 

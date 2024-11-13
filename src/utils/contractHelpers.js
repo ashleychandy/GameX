@@ -16,16 +16,13 @@ export const executeContractTransaction = async (
   } = options;
 
   try {
-    // Estimate gas with safety buffer
     const gasEstimate = await contract.estimateGas[method](...args, { value });
     const gasLimit = gasEstimate.mul(Math.floor(gasLimitMultiplier * 100)).div(100);
 
-    // Execute transaction
     const tx = await contract[method](...args, { gasLimit, value });
     onPending?.(tx.hash);
     toast.info(`Transaction submitted: ${tx.hash}`);
 
-    // Wait for confirmation
     const receipt = await tx.wait();
     
     if (receipt.status === 1) {

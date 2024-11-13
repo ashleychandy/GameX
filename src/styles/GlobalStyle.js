@@ -1,9 +1,13 @@
 import { createGlobalStyle } from 'styled-components';
 
 export const GlobalStyle = createGlobalStyle`
-  body {
+  * {
     margin: 0;
     padding: 0;
+    box-sizing: border-box;
+  }
+
+  body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen,
       Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
     -webkit-font-smoothing: antialiased;
@@ -12,13 +16,8 @@ export const GlobalStyle = createGlobalStyle`
     color: ${({ theme }) => theme.text.primary};
   }
 
-  * {
-    box-sizing: border-box;
-  }
-
-  a {
-    text-decoration: none;
-    color: inherit;
+  button {
+    font-family: inherit;
   }
 
   /* Improved scrollbar for dark theme */

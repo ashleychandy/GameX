@@ -1,247 +1,158 @@
 import { useState, useCallback, useEffect } from 'react';
 import { ethers } from 'ethers';
-import { useWallet } from '../contexts/WalletContext';
-import { useTokenApproval } from './useTokenApproval';
-import { handleContractError } from '../utils/contractHelpers';
-import { GAME_STATES } from '../utils/constants';
 import { toast } from 'react-toastify';
-import { CONFIG } from '../config';
+import { useWallet } from '../contexts/WalletContext';
+import { formatAmount } from '../utils/format';
+import { handleError } from '../utils/errorHandling';
+import { GAME_STATES } from '../utils/constants';
+import { executeContractTransaction } from '../utils/contractHelpers';
+import { useContract } from './useContract';
 
 export function useDiceGame() {
-  const { diceContract: contract, address } = useWallet();
-  const { checkAndApproveToken } = useTokenApproval(contract?.address);
-  
+  const { address, contracts } = useWallet();
   const [gameData, setGameData] = useState(null);
-  const [previousBets, setPreviousBets] = useState([]);
-  const [pendingRequest, setPendingRequest] = useState(false);
-  const [userData, setUserData] = useState(null);
-  const [requestDetails, setRequestDetails] = useState(null);
+  const [userStats, setUserStats] = useState(null);
+  const [history, setHistory] = useState([]);
+  const [requestInfo, setRequestInfo] = useState(null);
+  const [canStartGame, setCanStartGame] = useState(false);
   const [loadingStates, setLoadingStates] = useState({
+    fetchingData: false,
     placingBet: false,
-    resolvingGame: false,
-    recoveringGame: false,
-    fetchingData: false
+    resolving: false
   });
 
-  // Fetch game state
-  const fetchGameState = useCallback(async () => {
-    if (!contract || !address) return;
+  const updateGameState = useCallback(async () => {
+    if (!contracts?.dice || !address) return;
 
     try {
       setLoadingStates(prev => ({ ...prev, fetchingData: true }));
 
       const [
         currentGame,
-        userStats,
+        stats,
         betsHistory,
-        requestInfo,
-        canStart,
-        hasPending
+        requestDetails,
+        canStart
       ] = await Promise.all([
-        contract.getCurrentGame(address),
-        contract.getUserData(address),
-        contract.getPreviousBets(address),
-        contract.getCurrentRequestDetails(address),
-        contract.canStartNewGame(address),
-        contract.hasPendingRequest(address)
+        contracts.dice.getCurrentGame(address),
+        contracts.dice.getPlayerStats(address),
+        contracts.dice.getPreviousBets(address),
+        contracts.dice.getCurrentRequestDetails(address),
+        contracts.dice.canStartNewGame(address)
       ]);
 
       setGameData({
         isActive: currentGame.isActive,
         chosenNumber: currentGame.chosenNumber.toString(),
-        amount: currentGame.amount.toString(),
         result: currentGame.result.toString(),
-        payout: currentGame.payout.toString(),
+        amount: formatAmount(currentGame.amount),
+        timestamp: currentGame.timestamp.toString(),
+        payout: formatAmount(currentGame.payout),
         status: currentGame.status
       });
 
-      setUserData({
-        totalGames: userStats.totalGames.toString(),
-        totalBets: userStats.totalBets.toString(),
-        totalWinnings: userStats.totalWinnings.toString(),
-        totalLosses: userStats.totalLosses.toString(),
-        lastPlayed: userStats.lastPlayed.toString()
+      setUserStats({
+        winRate: formatAmount(stats.winRate),
+        averageBet: formatAmount(stats.averageBet),
+        totalGamesWon: stats.totalGamesWon.toString(),
+        totalGamesLost: stats.totalGamesLost.toString()
       });
 
-      setPreviousBets(betsHistory.map(bet => ({
+      setHistory(betsHistory.map(bet => ({
         chosenNumber: bet.chosenNumber.toString(),
         rolledNumber: bet.rolledNumber.toString(),
-        amount: bet.amount.toString(),
+        amount: formatAmount(bet.amount),
         timestamp: bet.timestamp.toString()
       })));
 
-      setRequestDetails({
-        requestId: requestInfo.requestId.toString(),
-        requestFulfilled: requestInfo.requestFulfilled,
-        requestActive: requestInfo.requestActive
+      setRequestInfo({
+        requestId: requestDetails.requestId.toString(),
+        fulfilled: requestDetails.requestFulfilled,
+        active: requestDetails.requestActive
       });
 
-      setPendingRequest(hasPending);
-
+      setCanStartGame(canStart);
     } catch (error) {
-      console.error('Error fetching game state:', error);
-      toast.error('Failed to fetch game state');
+      console.error('Error updating game state:', error);
+      toast.error('Failed to update game state');
     } finally {
       setLoadingStates(prev => ({ ...prev, fetchingData: false }));
     }
-  }, [contract, address]);
+  }, [contracts?.dice, address]);
 
-  // Place bet
-  const placeBet = useCallback(async (number, amount) => {
-    if (!contract || !address) {
-      toast.error('Wallet not connected');
-      return;
-    }
-
+  const playDice = useCallback(async (chosenNumber, betAmount) => {
+    if (!contracts?.dice || !address) return;
+    
+    setLoadingStates(prev => ({ ...prev, placingBet: true }));
+    
     try {
-      setLoadingStates(prev => ({ ...prev, placingBet: true }));
-
-      // First approve tokens
-      await checkAndApproveToken(amount);
-
-      // Place bet
-      const tx = await contract.playDice(
-        number,
-        ethers.parseEther(amount.toString())
+      const amount = ethers.parseEther(betAmount);
+      const tx = await executeContractTransaction(
+        contracts.dice,
+        'playDice',
+        [chosenNumber, amount],
+        {
+          onSuccess: () => {
+            toast.success('Bet placed successfully!');
+            updateGameState();
+          },
+          onError: (error) => {
+            toast.error('Failed to place bet');
+            console.error('Bet error:', error);
+          }
+        }
       );
 
-      toast.info('Placing bet...');
-      const receipt = await tx.wait();
-
-      // Find GameStarted event
-      const event = receipt.logs
-        .map(log => {
-          try {
-            return contract.interface.parseLog(log);
-          } catch {
-            return null;
-          }
-        })
-        .find(event => event && event.name === 'GameStarted');
-
-      if (event) {
-        toast.success('Bet placed successfully!');
-        await fetchGameState();
-        return event.args.requestId;
-      }
-
-      throw new Error('Game start event not found');
-    } catch (error) {
-      handleContractError(error);
-      throw error;
+      return tx;
     } finally {
       setLoadingStates(prev => ({ ...prev, placingBet: false }));
     }
-  }, [contract, address, checkAndApproveToken, fetchGameState]);
+  }, [contracts?.dice, address, updateGameState]);
 
-  // Resolve game
   const resolveGame = useCallback(async () => {
-    if (!contract || !address) return;
-
+    if (!contracts?.dice || !address) return;
+    
+    setLoadingStates(prev => ({ ...prev, resolving: true }));
+    
     try {
-      setLoadingStates(prev => ({ ...prev, resolvingGame: true }));
-      
-      const tx = await contract.resolveGame();
-      toast.info('Resolving game...');
-      
-      await tx.wait();
-      toast.success('Game resolved successfully!');
-      
-      await fetchGameState();
-    } catch (error) {
-      handleContractError(error);
+      await executeContractTransaction(
+        contracts.dice,
+        'resolveGame',
+        [],
+        {
+          onSuccess: () => {
+            toast.success('Game resolved successfully!');
+            updateGameState();
+          },
+          onError: (error) => {
+            toast.error('Failed to resolve game');
+            console.error('Resolve error:', error);
+          }
+        }
+      );
     } finally {
-      setLoadingStates(prev => ({ ...prev, resolvingGame: false }));
+      setLoadingStates(prev => ({ ...prev, resolving: false }));
     }
-  }, [contract, address, fetchGameState]);
+  }, [contracts?.dice, address, updateGameState]);
 
-  // Recover stuck game
-  const recoverStuckGame = useCallback(async () => {
-    if (!contract || !address) return;
-
-    try {
-      setLoadingStates(prev => ({ ...prev, recoveringGame: true }));
-      
-      const tx = await contract.recoverStuckGame(address);
-      toast.info('Recovering game...');
-      
-      await tx.wait();
-      toast.success('Game recovered successfully!');
-      
-      await fetchGameState();
-    } catch (error) {
-      handleContractError(error);
-    } finally {
-      setLoadingStates(prev => ({ ...prev, recoveringGame: false }));
-    }
-  }, [contract, address, fetchGameState]);
-
-  // Setup event listeners
+  // Auto-refresh game state
   useEffect(() => {
-    if (!contract || !address) return;
-
-    const filters = [
-      contract.filters.GameStarted(address),
-      contract.filters.GameCompleted(address),
-      contract.filters.GameCancelled(address)
-    ];
-
-    const handleGameEvent = () => {
-      fetchGameState();
-    };
-
-    filters.forEach(filter => {
-      contract.on(filter, handleGameEvent);
-    });
-
-    return () => {
-      filters.forEach(filter => {
-        contract.off(filter, handleGameEvent);
-      });
-    };
-  }, [contract, address, fetchGameState]);
-
-  // Initial fetch
-  useEffect(() => {
-    fetchGameState();
-  }, [fetchGameState]);
-
-  // Auto-refresh when game is active
-  useEffect(() => {
-    if (gameData?.isActive || pendingRequest) {
-      const interval = setInterval(fetchGameState, 5000);
-      return () => clearInterval(interval);
-    }
-  }, [gameData?.isActive, pendingRequest, fetchGameState]);
-
-  const initializeGame = useCallback(async () => {
-    try {
-      const callbackGasLimit = CONFIG.chainlink.callbackGasLimit;
-      const requestConfirmations = CONFIG.chainlink.requestConfirmations;
-      
-      // Initialize game with proper config
-      const tx = await contract.initializeGame({
-        gasLimit: callbackGasLimit,
-        requestConfirmations
-      });
-
-      await tx.wait();
-    } catch (error) {
-      throw handleError(error);
-    }
-  }, [contract]);
+    if (!contracts?.dice || !address) return;
+    
+    updateGameState();
+    const interval = setInterval(updateGameState, 30000);
+    return () => clearInterval(interval);
+  }, [contracts?.dice, address, updateGameState]);
 
   return {
     gameData,
-    previousBets,
-    pendingRequest,
-    userData,
-    requestDetails,
+    userStats,
+    history,
+    requestInfo,
+    canStartGame,
     loadingStates,
-    placeBet,
+    playDice,
     resolveGame,
-    recoverStuckGame,
-    refreshGameState: fetchGameState,
-    initializeGame
+    updateGameState
   };
 } 

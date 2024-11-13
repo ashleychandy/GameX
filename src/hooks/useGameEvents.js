@@ -2,7 +2,7 @@ import { useEffect, useCallback } from 'react';
 import { useWallet } from '../contexts/WalletContext';
 import { toast } from 'react-toastify';
 import { formatAmount } from '../utils/format';
-import { parseGameStatus } from '../utils/contractHelpers';
+import { GAME_EVENTS } from '../utils/events';
 
 export function useGameEvents(onGameUpdate) {
   const { contract: dice, address } = useWallet();
@@ -10,8 +10,11 @@ export function useGameEvents(onGameUpdate) {
   const setupEventListeners = useCallback(() => {
     if (!dice || !address) return;
 
-    // Game Started Event
     const gameStartedFilter = dice.filters.GameStarted(address);
+    const gameCompletedFilter = dice.filters.GameCompleted(address);
+    const gameCancelledFilter = dice.filters.GameCancelled(address);
+
+    // Game Started Event
     const handleGameStarted = (player, requestId, chosenNumber, amount, timestamp) => {
       if (player.toLowerCase() === address.toLowerCase()) {
         toast.info(
@@ -22,7 +25,6 @@ export function useGameEvents(onGameUpdate) {
     };
 
     // Game Resolved Event
-    const gameResolvedFilter = dice.filters.GameResolved(address);
     const handleGameResolved = (
       player, 
       requestId, 
@@ -45,7 +47,6 @@ export function useGameEvents(onGameUpdate) {
     };
 
     // Game Cancelled Event
-    const gameCancelledFilter = dice.filters.GameCancelled(address);
     const handleGameCancelled = (player, requestId, reason) => {
       if (player.toLowerCase() === address.toLowerCase()) {
         toast.error(`Game cancelled: ${reason}`);
@@ -55,13 +56,13 @@ export function useGameEvents(onGameUpdate) {
 
     // Set up listeners
     dice.on(gameStartedFilter, handleGameStarted);
-    dice.on(gameResolvedFilter, handleGameResolved);
+    dice.on(gameCompletedFilter, handleGameResolved);
     dice.on(gameCancelledFilter, handleGameCancelled);
 
     // Cleanup function
     return () => {
       dice.off(gameStartedFilter, handleGameStarted);
-      dice.off(gameResolvedFilter, handleGameResolved);
+      dice.off(gameCompletedFilter, handleGameResolved);
       dice.off(gameCancelledFilter, handleGameCancelled);
     };
   }, [dice, address, onGameUpdate]);

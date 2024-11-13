@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from "react";
 import styled from "styled-components";
 import { motion } from "framer-motion";
-import { Link } from "react-router-dom";
 import { useWallet } from "../contexts/WalletContext";
 import { GameCard } from "../components/game/GameCard";
 import { Loading } from "../components/common/Loading";
-import { formatAmount, formatNumber } from "../utils/helpers";
+import { formatAmount } from "../utils/format";
 import { Button } from "../components/common/Button";
 import { toast } from "react-toastify";
 import { ethers } from "ethers";

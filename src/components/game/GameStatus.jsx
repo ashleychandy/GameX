@@ -1,8 +1,8 @@
-import React from 'react';
-import styled from 'styled-components';
-import { motion } from 'framer-motion';
-import { formatEther } from 'ethers';
-import { GAME_STATES } from '../../utils/constants';
+import React from "react";
+import styled from "styled-components";
+import { motion } from "framer-motion";
+import { GAME_STATES } from "../../utils/constants";
+import { formatAmount } from "../../utils/format";
 
 const StatusContainer = styled.div`
   padding: 1.5rem;
@@ -16,10 +16,14 @@ const StatusText = styled(motion.p)`
   font-weight: 600;
   color: ${({ theme, $type }) => {
     switch ($type) {
-      case 'success': return theme.success;
-      case 'warning': return theme.warning;
-      case 'error': return theme.error;
-      default: return theme.text.primary;
+      case "success":
+        return theme.success;
+      case "warning":
+        return theme.warning;
+      case "error":
+        return theme.error;
+      default:
+        return theme.text.primary;
     }
   }};
 `;
@@ -29,41 +33,26 @@ const DetailText = styled.p`
   color: ${({ theme }) => theme.text.secondary};
 `;
 
-export function GameStatus({ gameData, contractState, requestDetails, pendingRequest }) {
+export function GameStatus({ gameData, requestInfo }) {
   const getStatusMessage = () => {
-    if (contractState.paused) {
-      return {
-        message: 'Game is currently paused',
-        type: 'warning'
-      };
-    }
+    if (!gameData) return { message: "Ready to play", type: "primary" };
 
-    if (pendingRequest) {
-      return {
-        message: 'Waiting for random number...',
-        type: 'warning'
-      };
-    }
-
-    if (gameData?.isActive) {
+    if (gameData.isActive) {
       return {
         message: `Active game: You chose ${gameData.chosenNumber}`,
-        type: 'primary'
+        type: "primary"
       };
     }
 
-    if (gameData?.result) {
+    if (gameData.result) {
       const won = parseFloat(gameData.payout) > 0;
       return {
-        message: won ? 'You Won!' : 'Better luck next time!',
-        type: won ? 'success' : 'error'
+        message: won ? "You Won!" : "Better luck next time!",
+        type: won ? "success" : "error"
       };
     }
 
-    return {
-      message: 'Ready to play',
-      type: 'primary'
-    };
+    return { message: "Ready to play", type: "primary" };
   };
 
   const { message, type } = getStatusMessage();
@@ -78,18 +67,16 @@ export function GameStatus({ gameData, contractState, requestDetails, pendingReq
       >
         {message}
       </StatusText>
-      
+
       {gameData?.isActive && (
         <DetailText>
-          Bet Amount: {formatEther(gameData.amount)} DICE
+          Bet Amount: {formatAmount(gameData.amount)} DICE
         </DetailText>
       )}
-      
-      {requestDetails?.requestId && (
-        <DetailText>
-          Request ID: {requestDetails.requestId}
-        </DetailText>
+
+      {requestInfo?.requestId && (
+        <DetailText>Request ID: {requestInfo.requestId}</DetailText>
       )}
     </StatusContainer>
   );
-} 
+}

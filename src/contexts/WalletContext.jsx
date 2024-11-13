@@ -1,210 +1,130 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import { ethers } from 'ethers';
-import { toast } from 'react-toastify';
-import { handleError } from '../utils/errorHandling';
-import { SUPPORTED_CHAIN_ID } from '../utils/constants';
-import { executeContractTransaction } from '../utils/contractHelpers';
-import DiceABI from '../abi/Dice.json';
-import TokenABI from '../abi/Token.json';
-import { NETWORKS } from '../utils/constants';
-import { config } from '../utils/config';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useCallback,
+  useEffect,
+} from "react";
+import { ethers } from "ethers";
+import { toast } from "react-toastify";
+import { SUPPORTED_NETWORKS } from "../utils/constants";
+import { handleError } from "../utils/errorHandling";
 
-const WalletContext = createContext(null);
+const SUPPORTED_NETWORKS = {
+  1: "Ethereum Mainnet",
+  5: "Goerli Testnet",
+  // Add other networks as needed
+};
+
+export const WalletContext = createContext({});
 
 export function WalletProvider({ children }) {
-  const [isConnected, setIsConnected] = useState(false);
-  const [isConnecting, setIsConnecting] = useState(false);
-  const [address, setAddress] = useState(null);
   const [provider, setProvider] = useState(null);
   const [signer, setSigner] = useState(null);
-  const [diceContract, setDiceContract] = useState(null);
-  const [tokenContract, setTokenContract] = useState(null);
+  const [address, setAddress] = useState(null);
   const [chainId, setChainId] = useState(null);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [isConnected, setIsConnected] = useState(false);
+  const [contracts, setContracts] = useState({
+    dice: null,
+    token: null
+  });
 
-  const resetWalletState = useCallback(() => {
-    setIsConnected(false);
-    setAddress(null);
-    setProvider(null);
-    setSigner(null);
-    setDiceContract(null);
-    setTokenContract(null);
-    localStorage.removeItem('wallet-autoconnect');
-  }, []);
+  const handleError = useCallback((error) => {
+    console.error("Wallet error:", error);
 
-  const initializeContracts = useCallback(async (signer) => {
-    try {
-      const diceContract = new ethers.Contract(
-        config.contracts.dice.address,
-        DiceABI.abi,
-        signer
-      );
-
-      const tokenContract = new ethers.Contract(
-        config.contracts.token.address,
-        TokenABI.abi,
-        signer
-      );
-
-      const [diceCode, tokenCode] = await Promise.all([
-        provider.getCode(config.contracts.dice.address),
-        provider.getCode(config.contracts.token.address)
-      ]);
-
-      if (diceCode === '0x' || tokenCode === '0x') {
-        throw new Error('Contracts not deployed');
-      }
-
-      setDiceContract(diceContract);
-      setTokenContract(tokenContract);
-    } catch (error) {
-      console.error('Contract initialization failed:', error);
-      throw error;
-    }
-  }, [provider]);
-
-  const checkAdminStatus = useCallback(async (address, contract) => {
-    if (!address || !contract) {
-      setIsAdmin(false);
-      return;
-    }
-
-    try {
-      const adminRole = await contract.DEFAULT_ADMIN_ROLE();
-      const hasRole = await contract.hasRole(adminRole, address);
-      setIsAdmin(hasRole);
-      console.log('Admin status checked:', { address, hasRole });
-    } catch (error) {
-      console.error('Error checking admin status:', error);
-      setIsAdmin(false);
+    if (error.code === 4001) {
+      toast.error("Transaction rejected by user");
+    } else if (error.code === -32002) {
+      toast.error("Please unlock your wallet");
+    } else {
+      toast.error(error.message || "An error occurred");
     }
   }, []);
 
   const connectWallet = useCallback(async () => {
     if (!window.ethereum) {
-      toast.error('Please install MetaMask!');
+      toast.error("Please install MetaMask!");
       return;
     }
 
     try {
       setIsConnecting(true);
 
-      const accounts = await window.ethereum.request({ 
-        method: 'eth_requestAccounts' 
-      });
-
-      const chainId = await window.ethereum.request({ 
-        method: 'eth_chainId' 
-      });
-      
+      const chainId = await window.ethereum.request({ method: "eth_chainId" });
       const currentChainId = parseInt(chainId, 16);
-      setChainId(currentChainId);
 
-      if (currentChainId !== SUPPORTED_CHAIN_ID) {
-        try {
-          await window.ethereum.request({
-            method: 'wallet_switchEthereumChain',
-            params: [{ chainId: `0x${SUPPORTED_CHAIN_ID.toString(16)}` }],
-          });
-        } catch (error) {
-          toast.error('Please switch to the correct network');
-          throw error;
-        }
+      if (!SUPPORTED_NETWORKS[currentChainId]) {
+        throw new Error("Please switch to a supported network");
       }
 
-      const provider = new ethers.BrowserProvider(window.ethereum);
-      const signer = await provider.getSigner();
-      
-      await initializeContracts(signer);
+      const ethProvider = new ethers.BrowserProvider(window.ethereum);
+      const accounts = await ethProvider.send("eth_requestAccounts", []);
+      const ethSigner = await ethProvider.getSigner();
 
-      await checkAdminStatus(accounts[0], diceContract);
-
-      setProvider(provider);
-      setSigner(signer);
+      setProvider(ethProvider);
+      setSigner(ethSigner);
       setAddress(accounts[0]);
-      setIsConnected(true);
-      
-      localStorage.setItem('wallet-autoconnect', 'true');
-      
-      toast.success('Wallet connected successfully!');
+      setChainId(currentChainId);
+
+      toast.success("Wallet connected successfully!");
     } catch (error) {
-      const { message } = handleError(error);
-      toast.error(message);
-      resetWalletState();
+      handleError(error);
     } finally {
       setIsConnecting(false);
     }
-  }, [initializeContracts, checkAdminStatus]);
+  }, [handleError]);
 
   const disconnectWallet = useCallback(() => {
-    resetWalletState();
-    toast.success('Wallet disconnected');
-  }, [resetWalletState]);
+    setProvider(null);
+    setSigner(null);
+    setAddress(null);
+    setChainId(null);
+    toast.info("Wallet disconnected");
+  }, []);
 
   useEffect(() => {
     if (!window.ethereum) return;
 
-    const handleAccountsChanged = (accounts) => {
+    const handleNetworkChange = () => {
+      window.location.reload();
+    };
+
+    const handleAccountsChange = (accounts) => {
       if (accounts.length === 0) {
-        resetWalletState();
+        disconnectWallet();
       } else {
         setAddress(accounts[0]);
       }
     };
 
-    const handleChainChanged = () => {
-      window.location.reload();
-    };
+    window.ethereum.on("chainChanged", handleNetworkChange);
+    window.ethereum.on("accountsChanged", handleAccountsChange);
 
-    const handleDisconnect = () => {
-      resetWalletState();
+    // Auto-connect if previously connected
+    const autoConnect = async () => {
+      if (localStorage.getItem("shouldAutoConnect") === "true") {
+        await connectWallet();
+      }
     };
-
-    window.ethereum.on('accountsChanged', handleAccountsChanged);
-    window.ethereum.on('chainChanged', handleChainChanged);
-    window.ethereum.on('disconnect', handleDisconnect);
+    autoConnect();
 
     return () => {
-      if (window.ethereum.removeListener) {
-        window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
-        window.ethereum.removeListener('chainChanged', handleChainChanged);
-        window.ethereum.removeListener('disconnect', handleDisconnect);
-      }
+      window.ethereum.removeListener("chainChanged", handleNetworkChange);
+      window.ethereum.removeListener("accountsChanged", handleAccountsChange);
     };
-  }, [resetWalletState]);
-
-  useEffect(() => {
-    const autoConnect = async () => {
-      if (window.ethereum && localStorage.getItem('wallet-autoconnect')) {
-        try {
-          await connectWallet();
-        } catch (error) {
-          console.error('Auto-connect failed:', error);
-          resetWalletState();
-        }
-      }
-    };
-
-    autoConnect();
-  }, [connectWallet, resetWalletState]);
+  }, [connectWallet, disconnectWallet]);
 
   return (
-    <WalletContext.Provider
-      value={{
-        isConnected,
-        isConnecting,
-        isAdmin,
-        address,
-        provider,
-        signer,
-        diceContract,
-        tokenContract,
-        chainId,
-        connectWallet,
-        disconnectWallet,
-        checkAdminStatus
-      }}
-    >
+    <WalletContext.Provider value={{
+      provider,
+      signer,
+      address,
+      chainId,
+      isConnected,
+      contracts,
+      connectWallet,
+      disconnectWallet
+    }}>
       {children}
     </WalletContext.Provider>
   );
@@ -217,5 +137,3 @@ export const useWallet = () => {
   }
   return context;
 };
-
-

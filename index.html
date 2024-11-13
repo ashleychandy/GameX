@@ -2,22 +2,13 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/src/assets/dice-logo.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <base href="/" />
-    <title>GameX - Play & Earn Platform</title>
-    <script type="module">
-      // Handle direct navigation
-      (function() {
-        const path = window.location.pathname;
-        if (path !== '/' && !path.includes('.')) {
-          window.history.replaceState(null, '', path);
-        }
-      })();
-    </script>
+    <title>GameX Platform</title>
   </head>
   <body>
     <div id="root"></div>
     <div id="portal-root"></div>
-    <script type="module" src="/src/main.jsx"></script>
+    <script type="module" src="/src/index.jsx"></script>
   </body>
 </html>

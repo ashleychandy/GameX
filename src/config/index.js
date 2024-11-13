@@ -23,22 +23,9 @@ export const CONFIG = {
   contracts: {
     token: {
       address: import.meta.env.VITE_TOKEN_ADDRESS,
-      roles: {
-        minter: import.meta.env.MINTER_ADDRESS,
-        burner: import.meta.env.BURNER_ADDRESS
-      }
     },
     dice: {
       address: import.meta.env.VITE_DICE_GAME_ADDRESS
     }
-  },
-  chainlink: {
-    coordinator: import.meta.env.CHAIN_LINK_VRF_COORDINATOR,
-    keyHash: import.meta.env.CHAIN_LINK_KEY_HASH,
-    subscriptionId: import.meta.env.CHAIN_LINK_SUBSCRIPTION_ID,
-    callbackGasLimit: parseInt(import.meta.env.CHAIN_LINK_CALLBACKGASLIMIT),
-    requestConfirmations: parseInt(import.meta.env.CHAIN_LINK_REQUESTCONFIRMATIONS),
-    numWords: parseInt(import.meta.env.CHAIN_LINK_NUMWORDS),
-    token: import.meta.env.CHAIN_LINK_TOKEN
   }
 };

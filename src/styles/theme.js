@@ -85,11 +85,14 @@ export const themes = {
     error: '#f87171',
     background: '#0f172a',
     surface: '#1e293b',
-    border: '#334155',
+    surface2: '#334155',
+    surface3: '#475569',
+    border: '#475569',
     text: {
       primary: '#f8fafc',
       secondary: '#94a3b8',
-      inverse: '#0f172a'
+      inverse: '#0f172a',
+      button: '#ffffff'
     },
     gradients: {
       primary: 'linear-gradient(135deg, #818cf8 0%, #6366f1 100%)',
@@ -97,9 +100,9 @@ export const themes = {
       warning: 'linear-gradient(135deg, #facc15 0%, #eab308 100%)'
     },
     shadow: {
-      sm: '0 1px 2px 0 rgb(0 0 0 / 0.3)',
-      md: '0 4px 6px -1px rgb(0 0 0 / 0.4)',
-      lg: '0 10px 15px -3px rgb(0 0 0 / 0.5)'
+      sm: '0 1px 2px rgba(0, 0, 0, 0.3)',
+      md: '0 4px 6px rgba(0, 0, 0, 0.4)',
+      lg: '0 10px 15px rgba(0, 0, 0, 0.5)'
     }
   }
 };
