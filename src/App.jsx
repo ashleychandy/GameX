@@ -1,20 +1,23 @@
 import React from 'react';
-import { BrowserRouter } from 'react-router-dom';
+import { RouterProvider } from 'react-router-dom';
 import { ToastContainer } from 'react-toastify';
 import ErrorBoundary from './components/ErrorBoundary';
-import { validateEnv } from './utils/config';
+import { validateEnv } from './utils/validateEnv';
+import { router } from './routes';
 import 'react-toastify/dist/ReactToastify.css';
 
-// Validate environment variables on app start
-validateEnv();
+// Validate environment variables
+try {
+  validateEnv();
+} catch (error) {
+  console.error('Environment validation failed:', error);
+}
 
 function App() {
   return (
     <ErrorBoundary>
-      <BrowserRouter>
-        <ToastContainer />
-        {/* Your routes and other components */}
-      </BrowserRouter>
+      <RouterProvider router={router} />
+      <ToastContainer />
     </ErrorBoundary>
   );
 }
