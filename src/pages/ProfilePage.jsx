@@ -2,9 +2,9 @@ import React from 'react';
 import styled from 'styled-components';
 import { motion } from 'framer-motion';
 import { useParams } from 'react-router-dom';
-import { ProfileStats } from '../components/profile/ProfileStats';
-import { GameHistory } from '../components/profile/GameHistory';
-import { useProfile } from '../hooks/useProfile';
+import { ProfileStats } from '@/components/profile/ProfileStats';
+import { GameHistory } from '@/components/profile/GameHistory';
+import { useProfile } from '@/hooks/useProfile';
 
 const ProfileContainer = styled(motion.div)`
   max-width: 1200px;

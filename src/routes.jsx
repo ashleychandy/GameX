@@ -1,10 +1,10 @@
 import React, { lazy, Suspense } from "react";
-import { Layout } from "./components/Layout";
-import { Loading } from "./components/Loading";
-import { ProtectedRoute } from "./components/common/ProtectedRoute";
+import { Layout } from "@/components/layout";
+import { Loading } from "@/components/common";
+import { ProtectedRoute } from "@/components/common/ProtectedRoute";
 
-const HomePage = lazy(() => import("./pages/HomePage"));
-const DicePage = lazy(() => import("./pages/DicePage"));
+const HomePage = lazy(() => import("@/pages/Home/HomePage"));
+const DicePage = lazy(() => import("@/pages/DiceGame"));
 
 const routes = [
   {

@@ -68,8 +68,12 @@ export function useGameEvents(onGameUpdate) {
   }, [dice, address, onGameUpdate]);
 
   useEffect(() => {
+    let mounted = true;
+    
     const cleanup = setupEventListeners();
+    
     return () => {
+      mounted = false;
       if (cleanup) cleanup();
     };
   }, [setupEventListeners]);

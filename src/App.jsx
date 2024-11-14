@@ -1,11 +1,11 @@
 import React from 'react';
 import { RouterProvider } from 'react-router-dom';
 import { ThemeProvider } from 'styled-components';
-import { router } from './router';
-import { themes } from './styles/theme';
-import { GlobalStyle } from './styles/GlobalStyle';
-import { WalletProvider } from './contexts/WalletContext';
-import { GameProvider } from './contexts/GameContext';
+import { router } from '@/router';
+import { themes } from '@/styles/theme';
+import { GlobalStyle } from '@/styles/GlobalStyle';
+import { WalletProvider } from '@/contexts/WalletContext';
+import { GameProvider } from '@/contexts/GameContext';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 

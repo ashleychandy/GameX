@@ -1,79 +1,48 @@
-// Theme configuration
-const themeConfig = {
+const baseTheme = {
   borderRadius: {
     sm: '4px',
     md: '8px',
     lg: '12px',
     xl: '16px',
-    '2xl': '24px',
     full: '9999px'
   },
   spacing: {
-    xs: '0.25rem',
-    sm: '0.5rem',
-    md: '1rem',
-    lg: '1.5rem',
-    xl: '2rem',
-    '2xl': '3rem'
+    xs: '4px',
+    sm: '8px',
+    md: '16px',
+    lg: '24px',
+    xl: '32px'
   }
 };
 
-// Base theme with shared properties
-const baseTheme = {
-  borderRadius: themeConfig.borderRadius,
-  spacing: themeConfig.spacing,
-  transition: {
-    default: '0.2s ease-in-out',
-    fast: '0.1s ease-in-out',
-    slow: '0.3s ease-in-out'
-  },
-  components: {
-    card: {
-      padding: '2rem',
-      borderRadius: '24px'
-    },
-    button: {
-      padding: {
-        sm: '0.5rem 1rem',
-        md: '0.75rem 1.5rem',
-        lg: '1rem 2rem'
-      }
-    }
-  }
-};
-
-// Theme colors and styles
-export const themes = {
+export const themeConfig = {
   light: {
     ...baseTheme,
     primary: '#6366f1',
-    secondary: '#4f46e5',
+    secondary: '#818cf8',
     success: '#22c55e',
     warning: '#eab308',
     error: '#ef4444',
     background: '#f8fafc',
     surface: '#ffffff',
+    surface2: '#f1f5f9',
+    surface3: '#e2e8f0',
     border: '#e2e8f0',
     text: {
-      primary: '#1e293b',
-      secondary: '#64748b',
-      inverse: '#f8fafc'
+      primary: '#0f172a',
+      secondary: '#475569',
+      inverse: '#f8fafc',
+      button: '#ffffff'
     },
     gradients: {
-      primary: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
-      success: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)',
-      warning: 'linear-gradient(135deg, #eab308 0%, #ca8a04 100%)'
+      primary: 'linear-gradient(135deg, #6366f1 0%, #818cf8 100%)',
+      success: 'linear-gradient(135deg, #22c55e 0%, #4ade80 100%)',
+      warning: 'linear-gradient(135deg, #eab308 0%, #facc15 100%)'
     },
     shadow: {
-      sm: '0 1px 2px 0 rgb(0 0 0 / 0.05)',
-      md: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
-      lg: '0 10px 15px -3px rgb(0 0 0 / 0.1)'
-    },
-    semantic: {
-      success: '#22c55e',
-      error: '#ef4444',
-      warning: '#eab308',
-      info: '#3b82f6'
+      sm: '0 1px 2px rgba(0, 0, 0, 0.1)',
+      md: '0 4px 6px rgba(0, 0, 0, 0.1)',
+      lg: '0 10px 15px rgba(0, 0, 0, 0.1)'
     }
   },
   dark: {
@@ -107,7 +76,6 @@ export const themes = {
   }
 };
 
-// Helper function to create CSS variables from theme
 export const createCSSVariables = (theme) => {
   const variables = {};
   Object.entries(theme).forEach(([key, value]) => {
@@ -122,21 +90,4 @@ export const createCSSVariables = (theme) => {
   return variables;
 };
 
-// Export everything needed
-export { themeConfig, baseTheme };
-
-export const theme = {
-  primary: '#6366f1',
-  surface: '#1f2937',
-  surface2: '#374151',
-  surface3: '#4b5563',
-  border: '#6b7280',
-  text: {
-    primary: '#f3f4f6',
-    secondary: '#9ca3af',
-    inverse: '#ffffff'
-  },
-  success: '#10b981',
-  warning: '#f59e0b',
-  error: '#ef4444'
-}; 
+export { themeConfig as default, baseTheme, createCSSVariables }; 

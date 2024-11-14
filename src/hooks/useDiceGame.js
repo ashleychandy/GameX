@@ -2,12 +2,20 @@ import { useState, useCallback, useEffect } from 'react';
 import { ethers } from 'ethers';
 import { toast } from 'react-toastify';
 import { useWallet } from '../contexts/WalletContext';
-import { formatAmount } from '../utils/format';
+import { formatAmount } from '@/utils/helpers';
 import { handleError } from '../utils/errorHandling';
 import { GAME_STATES } from '../utils/constants';
 import { executeContractTransaction } from '../utils/contractHelpers';
 import { useContract } from './useContract';
 import { CONTRACT_ADDRESSES } from '../utils/constants';
+import { GAME_EVENTS } from '@/utils/events';
+
+const validateGameData = (data) => {
+  if (!data || typeof data !== 'object') {
+    throw new Error('Invalid game data format');
+  }
+  // ... rest of validation
+};
 
 export function useDiceGame() {
   const { address, contracts } = useWallet();
@@ -26,9 +34,9 @@ export function useDiceGame() {
   const tokenAddress = CONTRACT_ADDRESSES.token;
 
   const updateGameState = useCallback(async () => {
-    if (!contracts?.dice || !address) return;
-
     try {
+      if (!contracts?.dice || !address) return;
+
       setLoadingStates(prev => ({ ...prev, fetchingData: true }));
 
       const [
@@ -78,7 +86,7 @@ export function useDiceGame() {
       setCanStartGame(canStart);
     } catch (error) {
       console.error('Error updating game state:', error);
-      toast.error('Failed to update game state');
+      throw error;
     } finally {
       setLoadingStates(prev => ({ ...prev, fetchingData: false }));
     }

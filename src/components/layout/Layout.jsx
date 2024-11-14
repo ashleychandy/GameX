@@ -1,58 +1,19 @@
+// src/components/Layout.jsx
 import React, { useEffect } from 'react';
 import styled from 'styled-components';
 import { Outlet, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Navbar } from './Navbar';
-import { Footer } from './Footer';
-import { getRouteMetadata } from '../../router';
+import Navbar from '@/components/layout/Navbar';
+import Footer from '@/components/layout/Footer';
+import { getRouteMetadata } from '@/routes';
+import PropTypes from 'prop-types';
 
-// Styled Components
 const LayoutContainer = styled.div`
   min-height: 100vh;
   display: flex;
   flex-direction: column;
   background: ${({ theme }) => theme.background};
   color: ${({ theme }) => theme.text.primary};
-`;
-
-const Header = styled(motion.header)`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 1rem 2rem;
-  background: ${({ theme }) => theme.surface};
-  box-shadow: ${({ theme }) => theme.shadow.sm};
-  z-index: 100;
-
-  @media (max-width: 768px) {
-    padding: 1rem;
-  }
-`;
-
-const HeaderLeft = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-`;
-
-const HeaderRight = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-
-  @media (max-width: 768px) {
-    gap: 0.5rem;
-  }
-`;
-
-const HeaderTitle = styled.h1`
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: ${({ theme }) => theme.text.primary};
-  background: ${({ theme }) => theme.gradients.primary};
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  margin: 0;
 `;
 
 const Main = styled(motion.main)`
@@ -110,7 +71,7 @@ const contentVariants = {
   }
 };
 
-export function Layout() {
+function Layout() {
   const location = useLocation();
   
   useEffect(() => {
@@ -122,20 +83,7 @@ export function Layout() {
 
   return (
     <LayoutContainer>
-      <Header
-        initial="initial"
-        animate="animate"
-        exit="exit"
-        variants={containerVariants}
-      >
-        <HeaderLeft>
-          <HeaderTitle>GameX</HeaderTitle>
-        </HeaderLeft>
-        <HeaderRight>
-          <Navbar />
-        </HeaderRight>
-      </Header>
-
+      <Navbar />
       <Main
         initial="initial"
         animate="animate"
@@ -146,12 +94,13 @@ export function Layout() {
           <Outlet />
         </ContentContainer>
       </Main>
-
       <Footer />
     </LayoutContainer>
   );
 }
 
-// PropTypes are not needed since this component doesn't accept any props
+Layout.propTypes = {
+  children: PropTypes.node
+};
 
-export default Layout; 
+export { Layout };

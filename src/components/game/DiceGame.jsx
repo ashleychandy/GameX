@@ -6,10 +6,12 @@ import { useDiceGame } from '../../hooks/useDiceGame';
 import { useGameEvents } from '../../hooks/useGameEvents';
 import { formatAmount, formatDate, parseAmount } from '../../utils/format';
 import { GAME_STATES, GAME_CONFIG } from '../../utils/constants';
-import { LoadingOverlay } from '../common/LoadingOverlay';
+import { LoadingOverlay } from '@/components/common';
 import { WalletPrompt } from '../common/WalletPrompt';
 import { toast } from 'react-toastify';
 import diceSprite from '../../assets/dice-sprite.svg';
+import { GameStatus, DiceSelector, BetInput } from '@/components/game';
+import PropTypes from 'prop-types';
 
 // Styled Components
 const GameContainer = styled(motion.div)`
@@ -458,114 +460,8 @@ function BetInput({ value, onChange, disabled }) {
 }
 
 // Main Game Component
-export default function Game() {
-  const { address, balance } = useWallet();
-  const {
-    gameData,
-    userStats,
-    history,
-    requestInfo,
-    canStartGame,
-    loadingStates,
-    playDice,
-    resolveGame,
-    updateGameState
-  } = useDiceGame();
+export { Game };
 
-  const [selectedNumber, setSelectedNumber] = useState(1);
-  const [betAmount, setBetAmount] = useState('');
-
-  useGameEvents(updateGameState);
-
-  if (!address) {
-    return <WalletPrompt />;
-  }
-
-  const handlePlay = async () => {
-    try {
-      if (!betAmount || parseFloat(betAmount) <= 0) {
-        toast.error('Please enter a valid bet amount');
-        return;
-      }
-
-      const parsedAmount = parseAmount(betAmount);
-      if (parsedAmount.gt(balance)) {
-        toast.error('Insufficient balance');
-        return;
-      }
-
-      await playDice(selectedNumber, betAmount);
-      setBetAmount('');
-    } catch (error) {
-      console.error('Error playing dice:', error);
-      toast.error('Failed to place bet');
-    }
-  };
-
-  const handleResolve = async () => {
-    try {
-      await resolveGame();
-    } catch (error) {
-      console.error('Error resolving game:', error);
-      toast.error('Failed to resolve game');
-    }
-  };
-
-  return (
-    <GameContainer
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-    >
-      <LoadingOverlay visible={loadingStates.fetchingData} />
-      
-      <GameControls>
-        <GameStatus 
-          gameData={gameData}
-          requestInfo={requestInfo}
-        />
-        
-        <DiceSelector 
-          selectedNumber={selectedNumber}
-          onSelect={setSelectedNumber}
-          disabled={!canStartGame || loadingStates.placingBet}
-        />
-        
-        <BetInput
-          value={betAmount}
-          onChange={setBetAmount}
-          disabled={!canStartGame || loadingStates.placingBet}
-        />
-        
-        <ButtonGroup>
-          <Button 
-            onClick={handlePlay}
-            disabled={!canStartGame || loadingStates.placingBet}
-            whileTap={{ scale: 0.95 }}
-          >
-            Place Bet
-          </Button>
-          
-          {gameData?.isActive && (
-            <Button
-              onClick={handleResolve}
-              disabled={loadingStates.resolving}
-              whileTap={{ scale: 0.95 }}
-              $variant="secondary"
-            >
-              Resolve Game
-            </Button>
-          )}
-        </ButtonGroup>
-      </GameControls>
-
-      <UserStats stats={userStats} />
-      
-      <GameHistory 
-        history={history}
-        currentGame={gameData}
-        isLoading={loadingStates.fetchingHistory}
-      />
-    </GameContainer>
-  );
-} 
+Game.propTypes = {
+  // Add your prop types here
+}; 

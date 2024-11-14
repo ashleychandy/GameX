@@ -2,8 +2,8 @@ import React from 'react';
 import styled from 'styled-components';
 import { NavLink as RouterNavLink } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { useWallet } from '../../contexts/WalletContext';
-import { Button } from '../common/Button';
+import { useWallet } from '@/contexts/WalletContext';
+import { Button } from '@/components/common';
 
 const Nav = styled(motion.nav)`
   display: flex;
