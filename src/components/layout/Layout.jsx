@@ -3,9 +3,9 @@ import React, { useEffect } from 'react';
 import styled from 'styled-components';
 import { Outlet, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import Navbar from '@/components/layout/Navbar';
-import Footer from '@/components/layout/Footer';
-import { getRouteMetadata } from '@/routes';
+import { Navbar } from '@/components/layout/Navbar';
+import { Footer } from '@/components/layout/Footer';
+import { getRouteMetadata } from '@/router';
 import PropTypes from 'prop-types';
 
 const LayoutContainer = styled.div`

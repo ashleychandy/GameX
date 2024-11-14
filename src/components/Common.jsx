@@ -4,7 +4,7 @@ import styled, { keyframes } from 'styled-components';
 import { motion } from 'framer-motion';
 import { createPortal } from 'react-dom';
 import Button from './Button';
-import { useWallet } from '../contexts/WalletContext';
+import { useWallet } from '@/contexts/WalletContext';
 
 // Animation keyframes
 const spin = keyframes`

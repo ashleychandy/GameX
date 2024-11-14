@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import styled from 'styled-components';
 import { ethers } from 'ethers';
-import { useWallet } from '../contexts/WalletContext';
-import { Button } from '../components/common/Button';
+import { useWallet } from '@/hooks/useWallet';
+import { Button } from '@/components/common/Button';
 import { toast } from 'react-toastify';
 import { motion, AnimatePresence } from 'framer-motion';
-import { DICE_GAME_ABI } from '../contracts/abis';
-import { formatAmount } from '../utils/helpers';
+import { DICE_GAME_ABI } from '@/contracts/abis';
+import { formatAmount } from '@/utils/helpers';
+import { Loading } from '@/components/common/Loading';
 
 const DiceContainer = styled.div`
   padding: 2rem;
@@ -93,19 +94,27 @@ const DicePage = () => {
   });
   const { provider, address, balance, chainId } = useWallet();
   const [contract, setContract] = useState(null);
+  const [isInitializing, setIsInitializing] = useState(true);
 
   // Initialize contract
   useEffect(() => {
-    if (provider && address) {
-      const diceGameAddress = import.meta.env.VITE_DICE_GAME_ADDRESS;
-      const contract = new ethers.Contract(
-        diceGameAddress,
-        DICE_GAME_ABI,
-        provider.getSigner()
-      );
-      setContract(contract);
-    }
+    const init = async () => {
+      setIsInitializing(true);
+      if (provider && address) {
+        const diceGameAddress = import.meta.env.VITE_DICE_GAME_ADDRESS;
+        const contract = new ethers.Contract(
+          diceGameAddress,
+          DICE_GAME_ABI,
+          provider.getSigner()
+        );
+        setContract(contract);
+      }
+      setIsInitializing(false);
+    };
+    init();
   }, [provider, address]);
+
+  if (isInitializing) return <Loading />;
 
   // Load game stats
   useEffect(() => {

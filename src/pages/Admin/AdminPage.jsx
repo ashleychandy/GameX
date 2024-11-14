@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
-import { AdminPanel } from '../components/admin/AdminPanel';
-import { useWallet } from '../contexts/WalletContext';
 import { Navigate } from 'react-router-dom';
-import Loading from '../components/common/Loading';
+import { AdminPanel } from '@/components/admin/AdminPanel';
+import { useWallet } from '@/hooks/useWallet';
+import { Loading } from '@/components/common/Loading';
 
 const Container = styled.div`
   max-width: 1200px;

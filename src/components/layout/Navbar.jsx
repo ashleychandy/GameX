@@ -2,8 +2,10 @@ import React from 'react';
 import styled from 'styled-components';
 import { NavLink as RouterNavLink } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { useWallet } from '@/contexts/WalletContext';
-import { Button } from '@/components/common';
+import { useWallet } from '@/hooks/useWallet';
+import { Button } from '@/components/common/Button';
+import { useTheme } from '@/hooks/useTheme';
+import { FaSun, FaMoon } from 'react-icons/fa';
 
 const Nav = styled(motion.nav)`
   display: flex;
@@ -54,8 +56,24 @@ const WalletButton = styled(Button)`
   }
 `;
 
+const ThemeToggle = styled(motion.button)`
+  background: none;
+  border: none;
+  color: ${({ theme }) => theme.text.primary};
+  cursor: pointer;
+  padding: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  
+  &:hover {
+    color: ${({ theme }) => theme.primary};
+  }
+`;
+
 export function Navbar() {
-  const { isConnected, connect, disconnect } = useWallet();
+  const { isConnected, isAdmin, connect, disconnect } = useWallet();
+  const { theme, toggleTheme } = useTheme();
 
   return (
     <Nav
@@ -66,9 +84,24 @@ export function Navbar() {
       <NavLink to="/" end>
         Home
       </NavLink>
-      <NavLink to="/dice">
-        Dice Game
-      </NavLink>
+      {isConnected && (
+        <>
+          <NavLink to="/dice">
+            Dice Game
+          </NavLink>
+          <NavLink to="/profile">
+            Profile
+          </NavLink>
+          {isAdmin && (
+            <NavLink to="/admin">
+              Admin
+            </NavLink>
+          )}
+        </>
+      )}
+      <ThemeToggle onClick={toggleTheme}>
+        {theme === 'dark' ? <FaSun size={20} /> : <FaMoon size={20} />}
+      </ThemeToggle>
       <WalletButton
         onClick={isConnected ? disconnect : connect}
         $variant={isConnected ? "secondary" : "primary"}
@@ -79,4 +112,4 @@ export function Navbar() {
   );
 }
 
-export default Navbar; 
+export { Navbar }; 

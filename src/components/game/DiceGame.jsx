@@ -1,16 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import styled from 'styled-components';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useWallet } from '../../contexts/WalletContext';
-import { useDiceGame } from '../../hooks/useDiceGame';
-import { useGameEvents } from '../../hooks/useGameEvents';
-import { formatAmount, formatDate, parseAmount } from '../../utils/format';
-import { GAME_STATES, GAME_CONFIG } from '../../utils/constants';
-import { LoadingOverlay } from '@/components/common';
-import { WalletPrompt } from '../common/WalletPrompt';
-import { toast } from 'react-toastify';
-import diceSprite from '../../assets/dice-sprite.svg';
+import { useWallet } from '@/hooks/useWallet';
+import { useGame } from '@/hooks/useGame';
+import { formatAmount } from '@/utils/helpers';
+import { GAME_STATES } from '@/utils/constants';
+import { LoadingOverlay, WalletPrompt } from '@/components/common';
 import { GameStatus, DiceSelector, BetInput } from '@/components/game';
+import { toast } from 'react-toastify';
+import diceSprite from '@/assets/images/dice-sprite.png';
 import PropTypes from 'prop-types';
 
 // Styled Components
@@ -460,8 +458,36 @@ function BetInput({ value, onChange, disabled }) {
 }
 
 // Main Game Component
-export { Game };
+export function DiceGame() {
+  const { isConnected } = useWallet();
+  const {
+    gameData,
+    userStats,
+    history,
+    isLoading,
+    error,
+    placeBet,
+    updateGameState
+  } = useGame();
 
-Game.propTypes = {
-  // Add your prop types here
+  const [selectedNumber, setSelectedNumber] = useState(1);
+  const [betAmount, setBetAmount] = useState('');
+
+  if (!isConnected) {
+    return <WalletPrompt />;
+  }
+
+  // ... rest of the component logic using the consolidated hook ...
+}
+
+// Add PropTypes
+DiceRoll.propTypes = {
+  rolling: PropTypes.bool.isRequired,
+  result: PropTypes.number,
+  won: PropTypes.bool
+};
+
+GameStatus.propTypes = {
+  gameData: PropTypes.object,
+  requestInfo: PropTypes.object
 }; 
