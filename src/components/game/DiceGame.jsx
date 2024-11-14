@@ -1,15 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useWallet } from '@/hooks/useWallet';
 import { useGame } from '@/hooks/useGame';
 import { formatAmount } from '@/utils/helpers';
-import { GAME_STATES } from '@/utils/constants';
-import { LoadingOverlay, WalletPrompt, Button } from '@/components/common';
-import { GameStatus, DiceSelector, BetInput } from '@/components/game';
+import { config } from '@/config';
+import { Button } from '@/components/common/Button';
+import { LoadingOverlay } from '@/components/common/LoadingOverlay';
+import { WalletPrompt } from '@/components/common/WalletPrompt';
 import { toast } from 'react-toastify';
-import diceSprite from '@/assets/images/dice-sprite.png';
 import PropTypes from 'prop-types';
+import diceSprite from '@/assets/dice-sprite.png';
 
 // Styled Components
 const GameContainer = styled(motion.div)`
@@ -33,16 +34,60 @@ const ButtonGroup = styled.div`
   margin-top: 1rem;
 `;
 
-const Button = styled(motion.button)`
+const StyledButton = styled(motion.button)`
   padding: 0.75rem 1.5rem;
-  border-radius: 8px;
-  border: none;
-  background: ${({ theme, $variant }) => 
-    $variant === 'primary' ? theme.primary : theme.surface3};
-  color: ${({ theme }) => theme.text.primary};
+  border-radius: 0.5rem;
   font-weight: 600;
-  cursor: ${({ disabled }) => disabled ? 'not-allowed' : 'pointer'};
-  opacity: ${({ disabled }) => disabled ? 0.5 : 1};
+  font-size: 1rem;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  
+  ${({ $variant, theme }) => {
+    switch ($variant) {
+      case 'primary':
+        return `
+          background: ${theme.gradients.primary};
+          color: white;
+          &:hover:not(:disabled) {
+            opacity: 0.9;
+            transform: translateY(-1px);
+          }
+        `;
+      case 'secondary':
+        return `
+          background: ${theme.surface2};
+          color: ${theme.text.primary};
+          &:hover:not(:disabled) {
+            background: ${theme.surface3};
+          }
+        `;
+      case 'outline':
+        return `
+          background: transparent;
+          border: 2px solid ${theme.border};
+          color: ${theme.text.primary};
+          &:hover:not(:disabled) {
+            background: ${theme.surface2};
+          }
+        `;
+      default:
+        return `
+          background: ${theme.surface};
+          color: ${theme.text.primary};
+          &:hover:not(:disabled) {
+            background: ${theme.surface2};
+          }
+        `;
+    }
+  }}
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
 `;
 
 const HistoryContainer = styled.div`
@@ -242,7 +287,7 @@ const QuickAmounts = styled.div`
   margin-top: 0.5rem;
 `;
 
-const QuickAmount = styled(motion.button)`
+const QuickAmount = styled.button`
   padding: 0.5rem 1rem;
   border-radius: 8px;
   background: ${({ theme }) => theme.background};
@@ -256,79 +301,180 @@ const QuickAmount = styled(motion.button)`
   }
 `;
 
-// Component Functions
+const Spinner = styled(motion.div)`
+  width: 50px;
+  height: 50px;
+  border: 4px solid ${({ theme }) => theme.surface};
+  border-top-color: ${({ theme }) => theme.primary};
+  border-radius: 50%;
+`;
 
-// DiceRoll Component
-function DiceRoll({ rolling, result, won }) {
+const NavBar = styled.nav`
+  padding: 1rem 2rem;
+  background: ${({ theme }) => theme.surface};
+  border-bottom: 1px solid ${({ theme }) => theme.border};
+  margin-bottom: 2rem;
+`;
+
+const NavContainer = styled.div`
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+`;
+
+const StatusContainer = styled(motion.div)`
+  padding: 1.5rem;
+  background: ${({ theme }) => theme.surface2};
+  border-radius: 12px;
+  margin-bottom: 2rem;
+`;
+
+const StatsGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+`;
+
+const StatItem = styled.div`
+  text-align: center;
+  padding: 1rem;
+  background: ${({ theme }) => theme.surface3};
+  border-radius: 8px;
+
+  h4 {
+    color: ${({ theme }) => theme.text.secondary};
+    font-size: 0.875rem;
+    margin-bottom: 0.5rem;
+  }
+
+  p {
+    color: ${({ theme }) => theme.text.primary};
+    font-size: 1.25rem;
+    font-weight: 600;
+  }
+`;
+
+const Address = styled.p`
+  color: ${({ theme }) => theme.text.secondary};
+  font-size: 0.875rem;
+  text-align: center;
+  margin-bottom: 1rem;
+`;
+
+const ErrorMessage = styled.div`
+  color: ${({ theme }) => theme.error};
+  padding: 1rem;
+  border-radius: 8px;
+  background: ${({ theme }) => theme.error}15;
+  margin-top: 1rem;
+  text-align: center;
+`;
+
+const SelectorContainer = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(60px, 1fr));
+  gap: 0.5rem;
+  margin: 1rem 0;
+`;
+
+const NumberButton = styled(motion.button)`
+  padding: 1rem;
+  border-radius: 8px;
+  background: ${({ theme, $selected }) => 
+    $selected ? theme.primary : theme.surface};
+  color: ${({ theme, $selected }) => 
+    $selected ? 'white' : theme.text.primary};
+  border: 2px solid ${({ theme, $selected }) => 
+    $selected ? theme.primary : theme.border};
+  font-size: 1.25rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  &:hover:not(:disabled) {
+    transform: translateY(-2px);
+    border-color: ${({ theme }) => theme.primary};
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+`;
+
+// Add NumberSelector component
+function NumberSelector({ selectedNumber, onSelect, disabled, numbers }) {
   return (
-    <DiceContainer>
-      <DiceWrapper
-        variants={diceVariants}
-        animate={rolling ? "rolling" : "stopped"}
-      >
-        <DiceFace $face={result || 1} />
-      </DiceWrapper>
+    <SelectorContainer>
+      {numbers.map(number => (
+        <NumberButton
+          key={number}
+          $selected={selectedNumber === number}
+          onClick={() => onSelect(number)}
+          disabled={disabled}
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+        >
+          {number}
+        </NumberButton>
+      ))}
+    </SelectorContainer>
+  );
+}
 
-      <AnimatePresence mode="wait">
-        {result && !rolling && (
-          <ResultText
-            $won={won}
-            variants={resultVariants}
-            initial="initial"
-            animate="animate"
-            exit="exit"
+NumberSelector.propTypes = {
+  selectedNumber: PropTypes.number.isRequired,
+  onSelect: PropTypes.func.isRequired,
+  disabled: PropTypes.bool,
+  numbers: PropTypes.arrayOf(PropTypes.number).isRequired
+};
+
+// Add BetInput component
+function BetInput({ value, onChange, disabled, min, max }) {
+  const quickAmounts = [min, max/4, max/2, max];
+
+  return (
+    <InputContainer>
+      <InputWrapper>
+        <StyledInput
+          type="number"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="Enter bet amount"
+          disabled={disabled}
+          min={min}
+          max={max}
+          step="0.1"
+        />
+        <TokenLabel>DICE</TokenLabel>
+      </InputWrapper>
+      <QuickAmounts>
+        {quickAmounts.map((amount) => (
+          <QuickAmount
+            key={amount}
+            onClick={() => onChange(amount.toString())}
+            disabled={disabled}
           >
-            {won ? 'You Won!' : 'Try Again!'}
-          </ResultText>
-        )}
-      </AnimatePresence>
-    </DiceContainer>
+            {amount} DICE
+          </QuickAmount>
+        ))}
+      </QuickAmounts>
+    </InputContainer>
   );
 }
 
-// Game Status Component
-function GameStatus({ gameData, requestInfo }) {
-  const getStatusMessage = () => {
-    if (!gameData) return { message: "Ready to play", type: "primary" };
+BetInput.propTypes = {
+  value: PropTypes.string.isRequired,
+  onChange: PropTypes.func.isRequired,
+  disabled: PropTypes.bool,
+  min: PropTypes.string.isRequired,
+  max: PropTypes.string.isRequired
+};
 
-    if (gameData.isActive) {
-      return {
-        message: `Active game: You chose ${gameData.chosenNumber}`,
-        type: "primary"
-      };
-    }
-
-    if (gameData.result) {
-      const won = parseFloat(gameData.payout) > 0;
-      return {
-        message: won ? "You Won!" : "Better luck next time!",
-        type: won ? "success" : "error"
-      };
-    }
-
-    return { message: "Ready to play", type: "primary" };
-  };
-
-  const { message, type } = getStatusMessage();
-
-  return (
-    <StatusContainer>
-      <StatusText $type={type}>
-        {message}
-      </StatusText>
-      {gameData?.isActive && (
-        <DetailText>
-          Bet Amount: {formatAmount(gameData.amount)} DICE
-        </DetailText>
-      )}
-      {requestInfo?.requestId && (
-        <DetailText>Request ID: {requestInfo.requestId}</DetailText>
-      )}
-    </StatusContainer>
-  );
-}
-
-// Game History Component
+// Add GameHistory component before the main DiceGame component
 function GameHistory({ history, currentGame, isLoading }) {
   if (isLoading) {
     return (
@@ -352,7 +498,7 @@ function GameHistory({ history, currentGame, isLoading }) {
             <ResultNumbers>
               <NumberBox>
                 <span>Chosen</span>
-                <strong>{currentGame.chosenNumber}</strong>
+                <strong>{currentGame.number}</strong>
               </NumberBox>
               <NumberBox>
                 <span>Amount</span>
@@ -366,26 +512,26 @@ function GameHistory({ history, currentGame, isLoading }) {
           history.map((game, index) => (
             <ResultItem
               key={`${game.timestamp}-${index}`}
-              $won={game.chosenNumber === game.rolledNumber}
+              $won={game.won}
             >
               <ResultHeader>
                 <strong>
-                  {game.chosenNumber === game.rolledNumber ? 'Won' : 'Lost'}
+                  {game.won ? 'Won' : 'Lost'}
                 </strong>
                 <span>{formatDate(game.timestamp)}</span>
               </ResultHeader>
               <ResultNumbers>
                 <NumberBox>
                   <span>Chosen</span>
-                  <strong>{game.chosenNumber}</strong>
-                </NumberBox>
-                <NumberBox>
-                  <span>Rolled</span>
-                  <strong>{game.rolledNumber}</strong>
+                  <strong>{game.number}</strong>
                 </NumberBox>
                 <NumberBox>
                   <span>Amount</span>
                   <strong>{formatAmount(game.amount)} DICE</strong>
+                </NumberBox>
+                <NumberBox>
+                  <span>Payout</span>
+                  <strong>{formatAmount(game.payout)} DICE</strong>
                 </NumberBox>
               </ResultNumbers>
             </ResultItem>
@@ -398,72 +544,32 @@ function GameHistory({ history, currentGame, isLoading }) {
   );
 }
 
-// DiceSelector Component
-function DiceSelector({ selectedNumber, onSelect, disabled }) {
-  return (
-    <SelectorContainer>
-      {[1, 2, 3, 4, 5, 6].map((number) => (
-        <DiceButton
-          key={number}
-          $selected={selectedNumber === number}
-          disabled={disabled}
-          onClick={() => onSelect(number)}
-          whileTap={{ scale: 0.95 }}
-        >
-          {number}
-        </DiceButton>
-      ))}
-    </SelectorContainer>
-  );
-}
+GameHistory.propTypes = {
+  history: PropTypes.arrayOf(PropTypes.shape({
+    number: PropTypes.number,
+    amount: PropTypes.string,
+    timestamp: PropTypes.number,
+    won: PropTypes.bool,
+    payout: PropTypes.string
+  })),
+  currentGame: PropTypes.shape({
+    number: PropTypes.number,
+    amount: PropTypes.string,
+    timestamp: PropTypes.number,
+    isActive: PropTypes.bool
+  }),
+  isLoading: PropTypes.bool
+};
 
-// BetInput Component
-function BetInput({ value, onChange, disabled }) {
-  const quickAmounts = [10, 50, 100, 500];
-
-  const handleChange = (e) => {
-    const value = e.target.value;
-    if (/^\d*\.?\d*$/.test(value)) {
-      onChange(value);
-    }
-  };
-
-  return (
-    <InputContainer>
-      <InputWrapper>
-        <StyledInput
-          type="text"
-          value={value}
-          onChange={handleChange}
-          placeholder="0.00"
-          disabled={disabled}
-        />
-        <TokenLabel>DICE</TokenLabel>
-      </InputWrapper>
-      <QuickAmounts>
-        {quickAmounts.map(amount => (
-          <QuickAmount
-            key={amount}
-            onClick={() => onChange(amount.toString())}
-            disabled={disabled}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-          >
-            {amount}
-          </QuickAmount>
-        ))}
-      </QuickAmounts>
-    </InputContainer>
-  );
-}
-
-// Main Game Component
+// Main DiceGame Component
 export function DiceGame() {
-  const { isConnected } = useWallet();
+  const { isConnected, address } = useWallet();
   const {
     gameData,
+    gameStats,
     isLoading,
     error,
+    pendingTx,
     placeBet,
     refreshGameState
   } = useGame();
@@ -472,95 +578,151 @@ export function DiceGame() {
   const [betAmount, setBetAmount] = useState('');
   const [isRolling, setIsRolling] = useState(false);
 
-  const handlePlaceBet = async () => {
-    if (!betAmount || !selectedNumber) {
-      toast.error('Please select a number and enter bet amount');
-      return;
+  // Validate bet amount
+  const validateBet = () => {
+    const amount = parseFloat(betAmount);
+    if (isNaN(amount) || amount <= 0) {
+      toast.error('Please enter a valid bet amount');
+      return false;
     }
+    if (amount < parseFloat(config.game.minBet)) {
+      toast.error(`Minimum bet is ${config.game.minBet} DICE`);
+      return false;
+    }
+    if (amount > parseFloat(config.game.maxBet)) {
+      toast.error(`Maximum bet is ${config.game.maxBet} DICE`);
+      return false;
+    }
+    return true;
+  };
+
+  const handlePlaceBet = async () => {
+    if (!validateBet()) return;
 
     try {
       setIsRolling(true);
-      const receipt = await placeBet(selectedNumber, betAmount);
-      
-      // Handle events from receipt
-      const resultEvent = receipt.events?.find(e => e.event === 'GameResult');
-      if (resultEvent) {
-        const [playerWon, rolledNumber] = resultEvent.args;
-        toast.success(
-          playerWon 
-            ? `You won! Rolled number: ${rolledNumber}` 
-            : `Better luck next time! Rolled number: ${rolledNumber}`
-        );
-      }
-
+      await placeBet(selectedNumber, betAmount);
       setBetAmount('');
-      await refreshGameState();
+      setSelectedNumber(1);
     } catch (err) {
-      toast.error(err.message);
+      console.error('Bet error:', err);
+      toast.error(err.message || 'Failed to place bet');
     } finally {
       setIsRolling(false);
     }
   };
 
-  if (!isConnected) {
-    return <WalletPrompt />;
-  }
-
-  if (isLoading) {
-    return <Loading message="Loading game data..." />;
-  }
+  // Auto-refresh game state when transaction is pending
+  useEffect(() => {
+    let interval;
+    if (pendingTx) {
+      interval = setInterval(refreshGameState, 5000);
+    }
+    return () => clearInterval(interval);
+  }, [pendingTx, refreshGameState]);
 
   return (
     <GameContainer
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5 }}
     >
-      <GameStatus gameData={gameData} />
-      
-      <GameControls>
-        <DiceSelector
-          selectedNumber={selectedNumber}
-          onSelect={setSelectedNumber}
-          disabled={isRolling}
-        />
-        
-        <BetInput
-          value={betAmount}
-          onChange={setBetAmount}
-          disabled={isRolling}
-        />
+      {!isConnected ? (
+        <WalletPrompt />
+      ) : (
+        <>
+          <GameControls>
+            <NumberSelector
+              selectedNumber={selectedNumber}
+              onSelect={setSelectedNumber}
+              disabled={isLoading || pendingTx}
+              numbers={config.game.numbers}
+            />
+            <BetInput
+              value={betAmount}
+              onChange={setBetAmount}
+              disabled={isLoading || pendingTx}
+              min={config.game.minBet}
+              max={config.game.maxBet}
+            />
+            <ButtonGroup>
+              <Button
+                variant="primary"
+                disabled={!betAmount || isLoading || pendingTx}
+                onClick={handlePlaceBet}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                {isRolling ? 'Rolling...' : pendingTx ? 'Waiting...' : 'Roll Dice'}
+              </Button>
+            </ButtonGroup>
+          </GameControls>
 
-        <ButtonGroup>
-          <Button
-            $variant="primary"
-            onClick={handlePlaceBet}
-            disabled={isRolling || !betAmount}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-          >
-            {isRolling ? 'Rolling...' : 'Roll Dice'}
-          </Button>
-        </ButtonGroup>
-      </GameControls>
+          {error && (
+            <ErrorMessage>
+              {error}
+            </ErrorMessage>
+          )}
 
-      {error && (
-        <ErrorMessage>
-          {error}
-        </ErrorMessage>
+          <GameHistory 
+            history={gameData?.history}
+            currentGame={gameData?.currentGame}
+            isLoading={isLoading}
+          />
+
+          {(isLoading || pendingTx) && (
+            <LoadingOverlay 
+              message={pendingTx ? 'Waiting for transaction...' : 'Loading...'}
+            />
+          )}
+
+          <GameStatus gameData={gameData} stats={gameStats} address={address} />
+        </>
       )}
     </GameContainer>
   );
 }
 
-// Add PropTypes
-DiceRoll.propTypes = {
-  rolling: PropTypes.bool.isRequired,
-  result: PropTypes.number,
-  won: PropTypes.bool
-};
+function GameStatus({ gameData, stats, address }) {
+  if (!gameData || !stats) return null;
+
+  return (
+    <StatusContainer
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3 }}
+    >
+      <Address>
+        Playing as: {address}
+      </Address>
+      <StatsGrid>
+        <StatItem>
+          <h4>Total Games</h4>
+          <p>{stats.totalGames || 0}</p>
+        </StatItem>
+        <StatItem>
+          <h4>Games Won</h4>
+          <p>{stats.gamesWon || 0}</p>
+        </StatItem>
+        <StatItem>
+          <h4>Win Rate</h4>
+          <p>
+            {stats.totalGames > 0
+              ? ((stats.gamesWon / stats.totalGames) * 100).toFixed(1)
+              : '0'}%
+          </p>
+        </StatItem>
+        <StatItem>
+          <h4>Total Winnings</h4>
+          <p>{formatAmount(stats.totalWinnings || 0)} DICE</p>
+        </StatItem>
+      </StatsGrid>
+    </StatusContainer>
+  );
+}
 
 GameStatus.propTypes = {
   gameData: PropTypes.object,
-  requestInfo: PropTypes.object
+  stats: PropTypes.object,
+  address: PropTypes.string
 }; 

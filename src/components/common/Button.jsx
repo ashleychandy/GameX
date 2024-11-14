@@ -11,6 +11,7 @@ export const Button = styled(motion.button)`
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
+  position: relative;
   
   ${({ $variant, theme }) => {
     switch ($variant) {
@@ -54,5 +55,33 @@ export const Button = styled(motion.button)`
   &:disabled {
     cursor: not-allowed;
     opacity: 0.6;
+  }
+
+  ${({ $loading }) => $loading && `
+    color: transparent;
+    pointer-events: none;
+
+    &::after {
+      content: '';
+      position: absolute;
+      width: 16px;
+      height: 16px;
+      top: 50%;
+      left: 50%;
+      margin: -8px 0 0 -8px;
+      border: 2px solid transparent;
+      border-top-color: currentColor;
+      border-radius: 50%;
+      animation: button-loading-spinner 0.6s linear infinite;
+    }
+  `}
+
+  @keyframes button-loading-spinner {
+    from {
+      transform: rotate(0turn);
+    }
+    to {
+      transform: rotate(1turn);
+    }
   }
 `; 

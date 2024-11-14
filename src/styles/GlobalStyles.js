@@ -7,16 +7,27 @@ export const GlobalStyles = createGlobalStyle`
     box-sizing: border-box;
   }
 
+  :root {
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    -webkit-text-size-adjust: 100%;
+  }
+
   html {
     font-size: 16px;
+    scroll-behavior: smooth;
   }
 
   body {
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+    min-height: 100vh;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+      Oxygen-Sans, Ubuntu, Cantarell, 'Helvetica Neue', sans-serif;
+    line-height: 1.5;
+    overflow-x: hidden;
     background: ${({ theme }) => theme.background};
     color: ${({ theme }) => theme.text.primary};
-    line-height: 1.5;
-    min-height: 100vh;
     transition: background-color 0.2s ease;
   }
 
@@ -30,16 +41,13 @@ export const GlobalStyles = createGlobalStyle`
     font-family: inherit;
     border: none;
     cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
     
     &:disabled {
       cursor: not-allowed;
       opacity: 0.6;
     }
-  }
-
-  a {
-    color: inherit;
-    text-decoration: none;
   }
 
   input, textarea {
@@ -64,5 +72,25 @@ export const GlobalStyles = createGlobalStyle`
 
   ::-webkit-scrollbar-thumb:hover {
     background: ${({ theme }) => theme.text.secondary};
+  }
+
+  /* Remove arrows from number inputs */
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  input[type="number"] {
+    -moz-appearance: textfield;
+  }
+
+  /* Improve tap targets on mobile */
+  @media (max-width: 768px) {
+    button, 
+    input, 
+    select {
+      min-height: 44px;
+    }
   }
 `; 

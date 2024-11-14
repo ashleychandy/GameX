@@ -1,3 +1,4 @@
+// Base theme colors and values
 const baseTheme = {
   shadow: {
     sm: '0 1px 2px 0 rgb(0 0 0 / 0.05)',
@@ -6,7 +7,6 @@ const baseTheme = {
   },
   gradients: {
     primary: 'linear-gradient(to right, #6366f1, #4f46e5)',
-    surface: 'linear-gradient(to bottom, #ffffff, #f8fafc)'
   }
 };
 
@@ -19,8 +19,8 @@ export const lightTheme = {
   surface2: '#f1f5f9',
   surface3: '#e2e8f0',
   text: {
-    primary: '#1e293b',
-    secondary: '#64748b',
+    primary: '#0f172a',
+    secondary: '#475569',
     accent: '#6366f1'
   },
   border: '#e2e8f0',
@@ -31,8 +31,8 @@ export const lightTheme = {
 
 export const darkTheme = {
   ...baseTheme,
-  primary: '#818cf8',
-  secondary: '#6366f1',
+  primary: '#6366f1',
+  secondary: '#4f46e5',
   background: '#0f172a',
   surface: '#1e293b',
   surface2: '#334155',
@@ -45,11 +45,8 @@ export const darkTheme = {
   border: '#334155',
   error: '#f87171',
   success: '#4ade80',
-  warning: '#fbbf24',
-  gradients: {
-    ...baseTheme.gradients,
-    surface: 'linear-gradient(to bottom, #1e293b, #0f172a)'
-  }
+  warning: '#fbbf24'
 };
 
-export default { lightTheme, darkTheme }; 
+// Default theme export
+export const theme = darkTheme; 

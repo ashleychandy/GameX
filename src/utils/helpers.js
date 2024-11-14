@@ -43,10 +43,10 @@ export const retryOperation = async (
  * @param {string|number} value
  * @returns {string}
  */
-export const formatAmount = (value) => {
+export const formatAmount = (value, decimals = 4) => {
   if (!value) return "0";
   try {
-    return ethers.formatEther(value);
+    return parseFloat(ethers.formatEther(value)).toFixed(decimals);
   } catch (error) {
     console.error("Error formatting amount:", error);
     return "0";
@@ -75,6 +75,36 @@ export const validateGameData = (data) => {
     throw new Error(`Missing required fields: ${missingFields.join(", ")}`);
   }
   return data;
+};
+
+/**
+ * @param {string} address
+ * @param {number} chars
+ * @returns {string}
+ */
+export const shortenAddress = (address, chars = 4) => {
+  if (!address) return '';
+  return `${address.slice(0, chars)}...${address.slice(-chars)}`;
+};
+
+/**
+ * @param {number} ms
+ * @returns {Promise<void>}
+ */
+export const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+/**
+ * @param {string} amount
+ * @returns {ethers.BigNumber}
+ */
+export const parseAmount = (amount) => {
+  if (!amount) return ethers.constants.Zero;
+  try {
+    return ethers.parseEther(amount.toString());
+  } catch (error) {
+    console.error("Error parsing amount:", error);
+    return ethers.constants.Zero;
+  }
 };
 
 // ... rest of the helper functions 

@@ -1,3 +1,64 @@
+// Network Configuration
+export const NETWORK_CONFIG = {
+  chainId: import.meta.env.VITE_CHAIN_ID || '11155111', // Sepolia testnet
+  rpcUrl: import.meta.env.VITE_SEPOLIA_RPC,
+  name: 'Sepolia',
+  explorer: 'https://sepolia.etherscan.io',
+  nativeCurrency: {
+    name: 'Sepolia ETH',
+    symbol: 'ETH',
+    decimals: 18
+  }
+};
+
+// Contract Addresses
+export const CONTRACT_ADDRESSES = {
+  token: import.meta.env.VITE_TOKEN_ADDRESS,
+  diceGame: import.meta.env.VITE_DICE_GAME_ADDRESS
+};
+
+// Game States
+export const GAME_STATES = {
+  IDLE: 'IDLE',
+  WAITING_FOR_APPROVAL: 'WAITING_FOR_APPROVAL',
+  PLACING_BET: 'PLACING_BET',
+  WAITING_FOR_RESULT: 'WAITING_FOR_RESULT',
+  COMPLETED: 'COMPLETED',
+  ERROR: 'ERROR'
+};
+
+// Game Configuration
+export const GAME_CONFIG = {
+  minBet: '0.1',
+  maxBet: '1000',
+  multiplier: 6,
+  numbers: [1, 2, 3, 4, 5, 6],
+  chainLink: {
+    callbackGasLimit: 2500000,
+    requestConfirmations: 3,
+    numWords: 1
+  }
+};
+
+// Validation Messages
+export const MESSAGES = {
+  errors: {
+    WALLET_NOT_CONNECTED: 'Please connect your wallet first',
+    INVALID_AMOUNT: 'Please enter a valid bet amount',
+    INVALID_NUMBER: 'Please select a number',
+    GAME_IN_PROGRESS: 'A game is already in progress',
+    INSUFFICIENT_BALANCE: 'Insufficient balance',
+    NETWORK_ERROR: 'Network error occurred',
+    TRANSACTION_FAILED: 'Transaction failed'
+  },
+  success: {
+    BET_PLACED: 'Bet placed successfully!',
+    GAME_WON: 'Congratulations! You won!',
+    GAME_COMPLETED: 'Game completed'
+  }
+};
+
+// Environment validation
 const validateEnv = () => {
   const required = [
     'VITE_SEPOLIA_RPC',
@@ -10,60 +71,19 @@ const validateEnv = () => {
   if (missing.length > 0) {
     throw new Error(`Missing required env variables: ${missing.join(', ')}`);
   }
-  return import.meta.env;
 };
 
-const env = validateEnv();
+// Run validation in development
+if (import.meta.env.DEV) {
+  validateEnv();
+}
 
+// Export consolidated config
 export const config = {
-  network: {
-    rpc: env.VITE_SEPOLIA_RPC,
-    chainId: parseInt(env.VITE_CHAIN_ID),
-    explorer: env.VITE_EXPLORER_URL,
-    name: 'Sepolia Test Network',
-    nativeCurrency: {
-      name: 'ETH',
-      symbol: 'ETH',
-      decimals: 18
-    }
-  },
-  contracts: {
-    token: env.VITE_TOKEN_ADDRESS,
-    dice: env.VITE_DICE_GAME_ADDRESS
-  }
+  network: NETWORK_CONFIG,
+  contracts: CONTRACT_ADDRESSES,
+  game: GAME_CONFIG,
+  messages: MESSAGES
 };
 
-export const GAME_CONFIG = {
-  PAYOUT_MULTIPLIER: 6,
-  MIN_BET: '0.000000000000000001',
-  MAX_RETRIES: 3,
-  POLLING_INTERVAL: 5000
-};
-
-export const switchNetwork = async (provider) => {
-  if (!provider) {
-    throw new Error('Provider is required');
-  }
-
-  const chainId = `0x${Number(config.network.chainId).toString(16)}`;
-
-  try {
-    await provider.send('wallet_switchEthereumChain', [{ chainId }]);
-  } catch (error) {
-    if (error.code === 4902) {
-      try {
-        await provider.send('wallet_addEthereumChain', [{
-          chainId,
-          chainName: config.network.name,
-          rpcUrls: [config.network.rpc],
-          nativeCurrency: config.network.nativeCurrency,
-          blockExplorerUrls: [config.network.explorer]
-        }]);
-      } catch (addError) {
-        throw new Error(`Failed to add network: ${addError.message}`);
-      }
-    } else {
-      throw error;
-    }
-  }
-}; 
+// ... rest of the code remains the same 

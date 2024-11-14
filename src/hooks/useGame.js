@@ -1,145 +1,229 @@
 import { useState, useCallback, useEffect } from 'react';
 import { ethers } from 'ethers';
 import { useWallet } from './useWallet';
-import { DICE_GAME_ABI } from '@/contracts/abis';
+import { DICE_GAME_ABI, TOKEN_ABI } from '@/contracts/abis';
 import { toast } from 'react-toastify';
 import { config } from '@/config';
 
 export function useGame() {
-  const { provider, address } = useWallet();
+  const { provider, account } = useWallet();
   const [gameData, setGameData] = useState(null);
-  const [gameStats, setGameStats] = useState({
-    totalBets: 0,
-    winRate: 0,
-    averageBet: 0,
-    gamesWon: 0,
-    gamesLost: 0
-  });
-  const [betHistory, setBetHistory] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [gameStats, setGameStats] = useState(null);
+  const [pendingTx, setPendingTx] = useState(null);
 
-  const diceContract = useCallback(() => {
-    if (!provider || !address) return null;
-    return new ethers.Contract(
-      config.contracts.dice,
-      DICE_GAME_ABI,
-      provider.getSigner()
-    );
-  }, [provider, address]);
+  const getContracts = useCallback(() => {
+    if (!provider || !account) return null;
+    
+    const signer = provider.getSigner();
+    return {
+      diceGame: new ethers.Contract(
+        config.contracts.diceGame,
+        DICE_GAME_ABI,
+        signer
+      ),
+      token: new ethers.Contract(
+        config.contracts.token,
+        TOKEN_ABI,
+        signer
+      )
+    };
+  }, [provider, account]);
 
-  // Fetch game data
   const fetchGameData = useCallback(async () => {
-    if (!diceContract() || !address) return;
+    const contracts = getContracts();
+    if (!contracts || !account) return;
 
     try {
-      const [currentGame, requestDetails, stats, history] = await Promise.all([
-        diceContract().getCurrentGame(address),
-        diceContract().getCurrentRequestDetails(address),
-        diceContract().getPlayerStats(address),
-        diceContract().getPreviousBets(address)
+      setIsLoading(true);
+      const [currentGame, stats, history] = await Promise.all([
+        contracts.diceGame.games(account),
+        contracts.diceGame.playerStats(account),
+        contracts.diceGame.getPlayerHistory(account)
       ]);
 
       setGameData({
-        isActive: currentGame.isActive,
-        chosenNumber: currentGame.chosenNumber.toNumber(),
-        result: currentGame.result.toNumber(),
-        amount: ethers.utils.formatEther(currentGame.amount),
-        timestamp: currentGame.timestamp.toNumber(),
-        payout: ethers.utils.formatEther(currentGame.payout),
-        status: currentGame.status,
-        requestId: requestDetails.requestId.toNumber(),
-        requestFulfilled: requestDetails.requestFulfilled,
-        requestActive: requestDetails.requestActive
+        currentGame: {
+          number: currentGame.number.toNumber(),
+          amount: ethers.formatEther(currentGame.amount),
+          timestamp: currentGame.timestamp.toNumber(),
+          resolved: currentGame.resolved,
+          won: currentGame.won,
+          payout: ethers.formatEther(currentGame.payout)
+        },
+        stats: {
+          gamesPlayed: stats.gamesPlayed.toNumber(),
+          gamesWon: stats.gamesWon.toNumber(),
+          totalWagered: ethers.formatEther(stats.totalWagered),
+          totalWon: ethers.formatEther(stats.totalWon)
+        },
+        history: history.map(game => ({
+          number: game.number.toNumber(),
+          amount: ethers.formatEther(game.amount),
+          timestamp: game.timestamp.toNumber(),
+          won: game.won,
+          payout: ethers.formatEther(game.payout)
+        }))
       });
+
+      // Fetch game stats
+      const [
+        totalGames,
+        totalVolume,
+        houseEdge,
+        collectedFees
+      ] = await Promise.all([
+        contracts.diceGame.totalGames(),
+        contracts.diceGame.totalVolume(),
+        contracts.diceGame.houseEdge(),
+        contracts.diceGame.collectedFees()
+      ]);
 
       setGameStats({
-        winRate: stats.winRate.toNumber() / 100, // Convert from basis points
-        averageBet: ethers.utils.formatEther(stats.averageBet),
-        gamesWon: stats.gamesWon.toNumber(),
-        gamesLost: stats.gamesLost.toNumber()
+        totalGames: totalGames.toNumber(),
+        totalVolume: ethers.formatEther(totalVolume),
+        houseEdge: houseEdge.toNumber() / 100,
+        collectedFees: ethers.formatEther(collectedFees)
       });
-
-      setBetHistory(history.map(bet => ({
-        chosenNumber: bet.chosenNumber.toNumber(),
-        rolledNumber: bet.rolledNumber.toNumber(),
-        amount: ethers.utils.formatEther(bet.amount),
-        timestamp: bet.timestamp.toNumber()
-      })));
 
     } catch (err) {
       console.error('Error fetching game data:', err);
       setError('Failed to fetch game data');
+    } finally {
+      setIsLoading(false);
     }
-  }, [diceContract, address]);
+  }, [getContracts, account]);
 
-  // Place bet
+  const checkAndApproveToken = async (amount) => {
+    const contracts = getContracts();
+    if (!contracts) throw new Error('Contracts not initialized');
+
+    try {
+      const allowance = await contracts.token.allowance(
+        account,
+        config.contracts.diceGame
+      );
+
+      if (allowance.lt(amount)) {
+        const approveTx = await contracts.token.approve(
+          config.contracts.diceGame,
+          ethers.MaxUint256
+        );
+        await approveTx.wait();
+      }
+    } catch (err) {
+      console.error('Approval error:', err);
+      throw new Error('Failed to approve tokens');
+    }
+  };
+
   const placeBet = useCallback(async (number, amount) => {
-    if (!diceContract()) {
+    const contracts = getContracts();
+    if (!contracts) {
       toast.error('Wallet not connected');
       return;
     }
 
-    setIsLoading(true);
-    setError(null);
-
     try {
-      const canStart = await diceContract().canStartNewGame(address);
-      if (!canStart) {
-        throw new Error('Cannot start new game. Previous game might be in progress.');
-      }
+      setIsLoading(true);
+      setError(null);
 
-      // First approve tokens
-      const tokenContract = new ethers.Contract(
-        config.contracts.token,
-        ['function approve(address spender, uint256 amount) returns (bool)'],
-        provider.getSigner()
-      );
-
-      const amountWei = ethers.utils.parseEther(amount.toString());
+      const amountWei = ethers.parseEther(amount.toString());
       
-      // Check allowance
-      const allowance = await tokenContract.allowance(address, config.contracts.dice);
-      if (allowance.lt(amountWei)) {
-        const approveTx = await tokenContract.approve(config.contracts.dice, amountWei);
-        await approveTx.wait();
+      // Check balance
+      const balance = await contracts.token.balanceOf(account);
+      if (balance.lt(amountWei)) {
+        throw new Error('Insufficient token balance');
       }
+
+      // Approve tokens if needed
+      await checkAndApproveToken(amountWei);
 
       // Place bet
-      const tx = await diceContract().placeBet(number, amountWei, {
-        gasLimit: config.chainLink.callbackGasLimit,
-      });
+      const tx = await contracts.diceGame.placeBet(number, amountWei);
+      setPendingTx(tx.hash);
       
       const receipt = await tx.wait();
       
-      // Fetch updated game data
+      // Handle events
+      const gameStartedEvent = receipt.events?.find(
+        e => e.event === 'GameStarted'
+      );
+      if (gameStartedEvent) {
+        toast.info('Game started! Waiting for result...');
+      }
+
       await fetchGameData();
-      
-      toast.success('Bet placed successfully!');
       return receipt;
+
     } catch (err) {
-      console.error('Place bet error:', err);
+      console.error('Error placing bet:', err);
       setError(err.message);
       toast.error('Failed to place bet');
+      throw err;
+    } finally {
+      setIsLoading(false);
+      setPendingTx(null);
+    }
+  }, [getContracts, account, fetchGameData]);
+
+  const withdrawFees = useCallback(async () => {
+    const contracts = getContracts();
+    if (!contracts) return;
+
+    try {
+      setIsLoading(true);
+      const tx = await contracts.diceGame.withdrawFees();
+      await tx.wait();
+      await fetchGameData();
+      toast.success('Fees withdrawn successfully');
+    } catch (err) {
+      console.error('Error withdrawing fees:', err);
+      toast.error('Failed to withdraw fees');
     } finally {
       setIsLoading(false);
     }
-  }, [diceContract, provider, address, fetchGameData]);
+  }, [getContracts, fetchGameData]);
+
+  // Setup event listeners
+  useEffect(() => {
+    const contracts = getContracts();
+    if (!contracts) return;
+
+    const handleGameResult = (player, won, number, amount, payout) => {
+      if (player.toLowerCase() === account.toLowerCase()) {
+        toast.success(
+          won 
+            ? `You won ${ethers.formatEther(payout)} DICE!` 
+            : 'Better luck next time!'
+        );
+        fetchGameData();
+      }
+    };
+
+    contracts.diceGame.on('GameResult', handleGameResult);
+
+    return () => {
+      contracts.diceGame.off('GameResult', handleGameResult);
+    };
+  }, [getContracts, account, fetchGameData]);
 
   // Initial data fetch
   useEffect(() => {
-    if (diceContract() && address) {
+    if (getContracts() && account) {
       fetchGameData();
     }
-  }, [diceContract, address, fetchGameData]);
+  }, [getContracts, account, fetchGameData]);
 
   return {
     gameData,
     gameStats,
-    betHistory,
     isLoading,
     error,
+    pendingTx,
     placeBet,
+    withdrawFees,
     refreshGameState: fetchGameData
   };
 } 
