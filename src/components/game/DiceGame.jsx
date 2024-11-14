@@ -5,7 +5,7 @@ import { useWallet } from '@/hooks/useWallet';
 import { useGame } from '@/hooks/useGame';
 import { formatAmount } from '@/utils/helpers';
 import { GAME_STATES } from '@/utils/constants';
-import { LoadingOverlay, WalletPrompt } from '@/components/common';
+import { LoadingOverlay, WalletPrompt, Button } from '@/components/common';
 import { GameStatus, DiceSelector, BetInput } from '@/components/game';
 import { toast } from 'react-toastify';
 import diceSprite from '@/assets/images/dice-sprite.png';
@@ -462,22 +462,95 @@ export function DiceGame() {
   const { isConnected } = useWallet();
   const {
     gameData,
-    userStats,
-    history,
     isLoading,
     error,
     placeBet,
-    updateGameState
+    refreshGameState
   } = useGame();
 
   const [selectedNumber, setSelectedNumber] = useState(1);
   const [betAmount, setBetAmount] = useState('');
+  const [isRolling, setIsRolling] = useState(false);
+
+  const handlePlaceBet = async () => {
+    if (!betAmount || !selectedNumber) {
+      toast.error('Please select a number and enter bet amount');
+      return;
+    }
+
+    try {
+      setIsRolling(true);
+      const receipt = await placeBet(selectedNumber, betAmount);
+      
+      // Handle events from receipt
+      const resultEvent = receipt.events?.find(e => e.event === 'GameResult');
+      if (resultEvent) {
+        const [playerWon, rolledNumber] = resultEvent.args;
+        toast.success(
+          playerWon 
+            ? `You won! Rolled number: ${rolledNumber}` 
+            : `Better luck next time! Rolled number: ${rolledNumber}`
+        );
+      }
+
+      setBetAmount('');
+      await refreshGameState();
+    } catch (err) {
+      toast.error(err.message);
+    } finally {
+      setIsRolling(false);
+    }
+  };
 
   if (!isConnected) {
     return <WalletPrompt />;
   }
 
-  // ... rest of the component logic using the consolidated hook ...
+  if (isLoading) {
+    return <Loading message="Loading game data..." />;
+  }
+
+  return (
+    <GameContainer
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+    >
+      <GameStatus gameData={gameData} />
+      
+      <GameControls>
+        <DiceSelector
+          selectedNumber={selectedNumber}
+          onSelect={setSelectedNumber}
+          disabled={isRolling}
+        />
+        
+        <BetInput
+          value={betAmount}
+          onChange={setBetAmount}
+          disabled={isRolling}
+        />
+
+        <ButtonGroup>
+          <Button
+            $variant="primary"
+            onClick={handlePlaceBet}
+            disabled={isRolling || !betAmount}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+          >
+            {isRolling ? 'Rolling...' : 'Roll Dice'}
+          </Button>
+        </ButtonGroup>
+      </GameControls>
+
+      {error && (
+        <ErrorMessage>
+          {error}
+        </ErrorMessage>
+      )}
+    </GameContainer>
+  );
 }
 
 // Add PropTypes

@@ -3,7 +3,7 @@ import styled from 'styled-components';
 import { Navigate } from 'react-router-dom';
 import { AdminPanel } from '@/components/admin/AdminPanel';
 import { useWallet } from '@/hooks/useWallet';
-import { Loading } from '@/components/common/Loading';
+import { Loading } from '@/components/common';
 
 const Container = styled.div`
   max-width: 1200px;

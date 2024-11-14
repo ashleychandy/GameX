@@ -1,33 +1,26 @@
 import React from 'react';
+import { ThemeProvider } from 'styled-components';
 import { RouterProvider } from 'react-router-dom';
-import { router } from '@/router';
-import themes from '@/styles/theme';
-import { GlobalStyle } from '@/styles/GlobalStyle';
-import { AppProviders } from '@/contexts';
 import { ToastContainer } from 'react-toastify';
-import { useTheme } from '@/hooks/useTheme';
+import { router } from './router';
+import { GlobalStyles } from './styles/GlobalStyles';
+import { lightTheme, darkTheme } from './styles/theme';
+import { useTheme } from './hooks/useTheme';
 import 'react-toastify/dist/ReactToastify.css';
 
-function App() {
+export default function App() {
   const { theme } = useTheme();
+  const currentTheme = theme === 'dark' ? darkTheme : lightTheme;
 
   return (
-    <AppProviders>
-      <GlobalStyle />
+    <ThemeProvider theme={currentTheme}>
+      <GlobalStyles />
       <RouterProvider router={router} />
-      <ToastContainer 
-        position="top-right"
-        autoClose={5000}
-        hideProgressBar={false}
-        closeOnClick
-        rtl={false}
-        pauseOnFocusLoss
-        draggable
-        pauseOnHover
+      <ToastContainer
+        position="bottom-right"
         theme={theme}
+        autoClose={5000}
       />
-    </AppProviders>
+    </ThemeProvider>
   );
-}
-
-export default App; 
+} 

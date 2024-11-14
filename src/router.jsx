@@ -1,10 +1,8 @@
 import React, { lazy, Suspense } from "react";
 import { createBrowserRouter } from "react-router-dom";
 import { Layout } from "@/components/layout/Layout";
-import { Loading } from "@/components/common/Loading";
-import { ProtectedRoute } from "@/components/common/ProtectedRoute";
+import { Loading, ProtectedRoute, ErrorBoundary } from "@/components/common";
 import { NotFoundPage } from "@/pages/NotFound/NotFoundPage";
-import { ErrorBoundary } from '@/components/common/ErrorBoundary';
 
 // Lazy loaded components
 const HomePage = lazy(() => import("@/pages/Home/HomePage"));

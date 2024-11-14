@@ -3,7 +3,7 @@ import styled from 'styled-components';
 import { NavLink as RouterNavLink } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useWallet } from '@/hooks/useWallet';
-import { Button } from '@/components/common/Button';
+import { Button } from '@/components/common';
 import { useTheme } from '@/hooks/useTheme';
 import { FaSun, FaMoon } from 'react-icons/fa';
 
@@ -110,6 +110,4 @@ export function Navbar() {
       </WalletButton>
     </Nav>
   );
-}
-
-export { Navbar }; 
+} 

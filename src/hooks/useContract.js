@@ -1,8 +1,8 @@
 import { useMemo } from 'react';
 import { ethers } from 'ethers';
 import { useWallet } from './useWallet';
-import { DICE_ABI, TOKEN_ABI } from '@/contracts/abis';
-import { CONFIG } from '@/config';
+import { DICE_GAME_ABI, TOKEN_ABI } from '@/contracts/abis';
+import { config } from '@/config';
 
 export function useContract(contractType = 'dice') {
   const { provider, signer } = useWallet();
@@ -12,11 +12,11 @@ export function useContract(contractType = 'dice') {
 
     const contracts = {
       dice: {
-        address: CONFIG.contracts.diceGameAddress,
-        abi: DICE_ABI
+        address: config.contracts.dice,
+        abi: DICE_GAME_ABI
       },
       token: {
-        address: CONFIG.contracts.tokenAddress,
+        address: config.contracts.token,
         abi: TOKEN_ABI
       }
     };

@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { useWallet } from '@/hooks';
 import { ethers } from 'ethers';
 import { Button } from '@/components/common';
-import { GAME_TOKEN_ABI } from '@/contracts/abis';
+import { TOKEN_ABI } from '@/contracts/abis';
 import { formatAmount } from '@/utils/helpers';
 
 // ... [Keep all the styled components from original HomePage.jsx]

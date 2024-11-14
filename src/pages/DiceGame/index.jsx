@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import styled from 'styled-components';
 import { ethers } from 'ethers';
 import { useWallet } from '@/hooks/useWallet';
-import { Button } from '@/components/common/Button';
+import { Button } from '@/components/common';
 import { toast } from 'react-toastify';
 import { motion, AnimatePresence } from 'framer-motion';
 import { DICE_GAME_ABI } from '@/contracts/abis';

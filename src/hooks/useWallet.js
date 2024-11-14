@@ -1,88 +1,76 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { ethers } from 'ethers';
-import { toast } from 'react-toastify';
-import { CONFIG } from '@/config';
+import { config } from '@/config';
 
 export function useWallet() {
   const [provider, setProvider] = useState(null);
   const [signer, setSigner] = useState(null);
-  const [address, setAddress] = useState(null);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [account, setAccount] = useState(null);
   const [chainId, setChainId] = useState(null);
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [error, setError] = useState(null);
 
   const connect = useCallback(async () => {
     if (!window.ethereum) {
-      toast.error('Please install MetaMask!');
+      setError('Please install MetaMask');
       return;
     }
 
+    setIsConnecting(true);
+    setError(null);
+
     try {
       const provider = new ethers.BrowserProvider(window.ethereum);
+      const accounts = await window.ethereum.request({
+        method: 'eth_requestAccounts'
+      });
+      
+      const signer = await provider.getSigner();
       const network = await provider.getNetwork();
       
-      if (network.chainId !== CONFIG.network.chainId) {
-        await window.ethereum.request({
-          method: 'wallet_switchEthereumChain',
-          params: [{ chainId: `0x${CONFIG.network.chainId.toString(16)}` }]
-        });
-      }
-
-      const signer = await provider.getSigner();
-      const address = await signer.getAddress();
-
       setProvider(provider);
       setSigner(signer);
-      setAddress(address);
-      setChainId(network.chainId);
-
-      // Check if user is admin
-      const diceContract = new ethers.Contract(
-        CONFIG.contracts.diceGameAddress,
-        ['function isAdmin(address) view returns (bool)'],
-        provider
-      );
-      const adminStatus = await diceContract.isAdmin(address);
-      setIsAdmin(adminStatus);
-
-    } catch (error) {
-      toast.error('Failed to connect wallet');
-      console.error(error);
+      setAccount(accounts[0]);
+      setChainId(Number(network.chainId));
+    } catch (err) {
+      console.error('Wallet connection error:', err);
+      setError(err.message);
+    } finally {
+      setIsConnecting(false);
     }
   }, []);
 
-  const disconnect = useCallback(() => {
-    setProvider(null);
-    setSigner(null);
-    setAddress(null);
-    setIsAdmin(false);
-    setChainId(null);
-  }, []);
-
+  // Handle chain changes
   useEffect(() => {
     if (window.ethereum) {
-      window.ethereum.on('accountsChanged', () => {
-        connect();
-      });
-      window.ethereum.on('chainChanged', () => {
-        window.location.reload();
+      window.ethereum.on('chainChanged', () => window.location.reload());
+      window.ethereum.on('accountsChanged', (accounts) => {
+        if (accounts.length === 0) {
+          setAccount(null);
+          setSigner(null);
+        } else {
+          setAccount(accounts[0]);
+        }
       });
     }
 
     return () => {
       if (window.ethereum) {
-        window.ethereum.removeAllListeners();
+        window.ethereum.removeListener('chainChanged', () => window.location.reload());
+        window.ethereum.removeListener('accountsChanged', () => {});
       }
     };
-  }, [connect]);
+  }, []);
 
   return {
     provider,
     signer,
-    address,
-    isAdmin,
+    account,
     chainId,
-    isConnected: !!address,
+    isConnecting,
+    error,
     connect,
-    disconnect
+    isConnected: !!account,
+    isCorrectNetwork: chainId === config.network.chainId
   };
 }
