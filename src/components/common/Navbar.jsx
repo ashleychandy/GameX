@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import styled from 'styled-components';
 import { Link, useLocation } from 'react-router-dom';
 import { useWallet } from '@/hooks/useWallet';
@@ -43,12 +43,8 @@ const NavLink = styled(Link)`
   }
 `;
 
-const WalletButton = styled(Button)`
-  min-width: 140px;
-`;
-
 export function Navbar() {
-  const { isConnected, connect, disconnect, address } = useWallet();
+  const { isConnected, address, connectWallet, disconnectWallet } = useWallet();
   const location = useLocation();
 
   return (
@@ -59,15 +55,22 @@ export function Navbar() {
           <NavLink to="/" $active={location.pathname === '/'}>
             Home
           </NavLink>
-          <NavLink to="/play" $active={location.pathname === '/play'}>
-            Play
-          </NavLink>
-          <WalletButton
-            onClick={isConnected ? disconnect : connect}
+          {isConnected && (
+            <>
+              <NavLink to="/play" $active={location.pathname === '/play'}>
+                Play
+              </NavLink>
+              <NavLink to="/admin" $active={location.pathname === '/admin'}>
+                Admin
+              </NavLink>
+            </>
+          )}
+          <Button
             variant={isConnected ? "secondary" : "primary"}
+            onClick={isConnected ? disconnectWallet : connectWallet}
           >
             {isConnected ? shortenAddress(address) : "Connect Wallet"}
-          </WalletButton>
+          </Button>
         </NavLinks>
       </Container>
     </Nav>

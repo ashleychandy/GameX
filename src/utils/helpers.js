@@ -107,4 +107,27 @@ export const parseAmount = (amount) => {
   }
 };
 
+// Add isValidAddress function
+export const isValidAddress = (address) => {
+  try {
+    return ethers.isAddress(address);
+  } catch (error) {
+    return false;
+  }
+};
+
+// Add additional helper for role management
+export const ADMIN_ROLE = ethers.keccak256(
+  ethers.toUtf8Bytes("ADMIN_ROLE")
+);
+
+export const hasRole = async (contract, role, address) => {
+  try {
+    return await contract.hasRole(role, address);
+  } catch (error) {
+    console.error('Error checking role:', error);
+    return false;
+  }
+};
+
 // ... rest of the helper functions 

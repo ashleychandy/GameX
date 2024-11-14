@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { useWallet } from '@/hooks/useWallet';
 import { ethers } from 'ethers';
-import { DICE_GAME_ABI } from '@/contracts/abis';
+import { TOKEN_ABI } from '@/abi';
 import { config } from '@/config';
 
 const GameContext = createContext(null);
@@ -16,21 +16,28 @@ export function GameProvider({ children }) {
   });
 
   const checkAdminStatus = useCallback(async () => {
-    if (!provider || !address) return false;
+    if (!provider || !address) {
+      setIsAdmin(false);
+      return false;
+    }
 
-    const contract = new ethers.Contract(
-      config.contracts.diceGame,
-      DICE_GAME_ABI,
+    const tokenContract = new ethers.Contract(
+      config.contracts.token,
+      TOKEN_ABI,
       provider.getSigner()
     );
 
     try {
-      const owner = await contract.owner();
-      const isOwner = owner.toLowerCase() === address.toLowerCase();
-      setIsAdmin(isOwner);
-      return isOwner;
+      const DEFAULT_ADMIN_ROLE = await tokenContract.DEFAULT_ADMIN_ROLE();
+      const hasAdminRole = await tokenContract.hasRole(
+        DEFAULT_ADMIN_ROLE,
+        address
+      );
+      setIsAdmin(hasAdminRole);
+      return hasAdminRole;
     } catch (err) {
       console.error('Error checking admin status:', err);
+      setIsAdmin(false);
       return false;
     }
   }, [provider, address]);

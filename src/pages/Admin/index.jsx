@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import styled from 'styled-components';
 import { motion } from 'framer-motion';
 import { useGame } from '@/hooks/useGame';
 import { Button } from '@/components/common/Button';
-import { formatAmount } from '@/utils/helpers';
+import { formatAmount, isValidAddress } from '@/utils/helpers';
+import { toast } from 'react-toastify';
 
 const Container = styled(motion.div)`
   max-width: 1200px;
@@ -48,8 +49,112 @@ const Stat = styled.div`
   }
 `;
 
+const RoleManagement = styled.div`
+  margin-top: 2rem;
+  padding-top: 2rem;
+  border-top: 1px solid ${({ theme }) => theme.border};
+`;
+
+const InputGroup = styled.div`
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1rem;
+`;
+
+const Input = styled.input`
+  flex: 1;
+  padding: 0.75rem 1rem;
+  border: 2px solid ${({ theme }) => theme.border};
+  border-radius: 8px;
+  background: ${({ theme }) => theme.background};
+  color: ${({ theme }) => theme.text.primary};
+
+  &:focus {
+    outline: none;
+    border-color: ${({ theme }) => theme.primary};
+  }
+`;
+
+const AdminList = styled.div`
+  margin-top: 2rem;
+`;
+
+const AdminItem = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  background: ${({ theme }) => theme.surface2};
+  border-radius: 8px;
+  margin-bottom: 0.5rem;
+
+  p {
+    color: ${({ theme }) => theme.text.primary};
+    font-family: monospace;
+  }
+`;
+
 export function AdminPage() {
-  const { gameStats, isLoading, withdrawFees } = useGame();
+  const { 
+    gameStats, 
+    isLoading, 
+    withdrawFees, 
+    grantAdminRole, 
+    revokeAdminRole,
+    getAdminList,
+    isAdmin 
+  } = useGame();
+  
+  const [newAdminAddress, setNewAdminAddress] = useState('');
+  const [adminList, setAdminList] = useState([]);
+
+  const handleGrantRole = async () => {
+    if (!isValidAddress(newAdminAddress)) {
+      toast.error('Please enter a valid address');
+      return;
+    }
+
+    try {
+      await grantAdminRole(newAdminAddress);
+      toast.success('Admin role granted successfully');
+      setNewAdminAddress('');
+      refreshAdminList();
+    } catch (error) {
+      toast.error(error.message || 'Failed to grant admin role');
+    }
+  };
+
+  const handleRevokeRole = async (address) => {
+    try {
+      await revokeAdminRole(address);
+      toast.success('Admin role revoked successfully');
+      refreshAdminList();
+    } catch (error) {
+      toast.error(error.message || 'Failed to revoke admin role');
+    }
+  };
+
+  const refreshAdminList = async () => {
+    try {
+      const admins = await getAdminList();
+      setAdminList(admins);
+    } catch (error) {
+      console.error('Failed to fetch admin list:', error);
+    }
+  };
+
+  React.useEffect(() => {
+    refreshAdminList();
+  }, []);
+
+  if (!isAdmin) {
+    return (
+      <Container>
+        <Title>Access Denied</Title>
+        <p>You don't have permission to access this page.</p>
+      </Container>
+    );
+  }
 
   return (
     <Container
@@ -86,6 +191,41 @@ export function AdminPage() {
         >
           Withdraw Fees
         </Button>
+
+        <RoleManagement>
+          <Title>Role Management</Title>
+          <InputGroup>
+            <Input
+              type="text"
+              placeholder="Enter address to grant admin role"
+              value={newAdminAddress}
+              onChange={(e) => setNewAdminAddress(e.target.value)}
+            />
+            <Button
+              variant="primary"
+              onClick={handleGrantRole}
+              disabled={isLoading || !newAdminAddress}
+            >
+              Grant Admin Role
+            </Button>
+          </InputGroup>
+
+          <AdminList>
+            <h3>Current Admins</h3>
+            {adminList.map((admin) => (
+              <AdminItem key={admin}>
+                <p>{admin}</p>
+                <Button
+                  variant="error"
+                  onClick={() => handleRevokeRole(admin)}
+                  disabled={isLoading}
+                >
+                  Revoke Role
+                </Button>
+              </AdminItem>
+            ))}
+          </AdminList>
+        </RoleManagement>
       </Card>
     </Container>
   );

@@ -1,3 +1,4 @@
+import React from 'react';
 import { createBrowserRouter } from 'react-router-dom';
 import { Layout } from '@/components/layout/Layout';
 import { HomePage } from '@/pages/Home';
@@ -12,7 +13,7 @@ export const router = createBrowserRouter([
     children: [
       {
         index: true,
-        element: <HomePage />,
+        element: <HomePage />
       },
       {
         path: 'play',
@@ -20,20 +21,16 @@ export const router = createBrowserRouter([
           <ProtectedRoute>
             <DicePage />
           </ProtectedRoute>
-        ),
+        )
       },
       {
         path: 'admin',
         element: (
-          <ProtectedRoute adminOnly>
+          <ProtectedRoute>
             <AdminPage />
           </ProtectedRoute>
-        ),
-      },
-      {
-        path: '*',
-        element: <HomePage />,
+        )
       }
-    ],
+    ]
   }
 ]); 
