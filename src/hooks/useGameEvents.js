@@ -1,80 +1,73 @@
-import { useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { useContract } from './useContract';
 import { useWallet } from '../contexts/WalletContext';
-import { toast } from 'react-toastify';
-import { formatAmount } from '../utils/format';
-import { GAME_EVENTS } from '../utils/events';
+import { notify } from '../services/notifications';
 
-export function useGameEvents(onGameUpdate) {
-  const { contract: dice, address } = useWallet();
+export const useGameEvents = () => {
+  const contract = useContract();
+  const { account } = useWallet();
+  const [results, setResults] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const setupEventListeners = useCallback(() => {
-    if (!dice || !address) return;
+  const fetchPastEvents = useCallback(async () => {
+    if (!contract || !account) return;
 
-    const gameStartedFilter = dice.filters.GameStarted(address);
-    const gameCompletedFilter = dice.filters.GameCompleted(address);
-    const gameCancelledFilter = dice.filters.GameCancelled(address);
+    try {
+      setLoading(true);
+      const filter = contract.filters.GameResult(account);
+      const events = await contract.queryFilter(filter, -10000, 'latest');
+      
+      const formattedResults = events.map(event => ({
+        id: `${event.transactionHash}-${event.logIndex}`,
+        player: event.args.player,
+        guess: event.args.number.toString(),
+        result: event.args.result.toString(),
+        amount: event.args.amount,
+        won: event.args.won,
+        timestamp: new Date(event.block.timestamp * 1000).getTime()
+      }));
 
-    // Game Started Event
-    const handleGameStarted = (player, requestId, chosenNumber, amount, timestamp) => {
-      if (player.toLowerCase() === address.toLowerCase()) {
-        toast.info(
-          `Bet placed: ${chosenNumber} for ${formatAmount(amount)} tokens`
-        );
-        onGameUpdate?.();
-      }
-    };
+      setResults(formattedResults.sort((a, b) => b.timestamp - a.timestamp));
+    } catch (error) {
+      console.error('Failed to fetch past events:', error);
+      notify.error('Failed to load game history');
+    } finally {
+      setLoading(false);
+    }
+  }, [contract, account]);
 
-    // Game Resolved Event
-    const handleGameResolved = (
-      player, 
-      requestId, 
-      chosenNumber, 
-      rolledNumber, 
-      amount, 
-      payout, 
-      status,
-      timestamp
-    ) => {
-      if (player.toLowerCase() === address.toLowerCase()) {
-        const statusText = parseGameStatus(status);
-        const message = payout > 0
-          ? `You won ${formatAmount(payout)} tokens!`
-          : 'Better luck next time!';
-        
-        toast[payout > 0 ? 'success' : 'info'](message);
-        onGameUpdate?.();
-      }
-    };
+  const handleGameResult = useCallback((player, number, result, amount, won, event) => {
+    if (player.toLowerCase() !== account.toLowerCase()) return;
 
-    // Game Cancelled Event
-    const handleGameCancelled = (player, requestId, reason) => {
-      if (player.toLowerCase() === address.toLowerCase()) {
-        toast.error(`Game cancelled: ${reason}`);
-        onGameUpdate?.();
-      }
-    };
-
-    // Set up listeners
-    dice.on(gameStartedFilter, handleGameStarted);
-    dice.on(gameCompletedFilter, handleGameResolved);
-    dice.on(gameCancelledFilter, handleGameCancelled);
-
-    // Cleanup function
-    return () => {
-      dice.off(gameStartedFilter, handleGameStarted);
-      dice.off(gameCompletedFilter, handleGameResolved);
-      dice.off(gameCancelledFilter, handleGameCancelled);
-    };
-  }, [dice, address, onGameUpdate]);
+    setResults(prev => [{
+      id: `${event.transactionHash}-${event.logIndex}`,
+      player,
+      guess: number.toString(),
+      result: result.toString(),
+      amount,
+      won,
+      timestamp: Date.now()
+    }, ...prev]);
+  }, [account]);
 
   useEffect(() => {
-    let mounted = true;
-    
-    const cleanup = setupEventListeners();
-    
+    fetchPastEvents();
+  }, [fetchPastEvents]);
+
+  useEffect(() => {
+    if (!contract) return;
+
+    const gameResultFilter = contract.filters.GameResult(account);
+    contract.on(gameResultFilter, handleGameResult);
+
     return () => {
-      mounted = false;
-      if (cleanup) cleanup();
+      contract.off(gameResultFilter, handleGameResult);
     };
-  }, [setupEventListeners]);
-} 
+  }, [contract, account, handleGameResult]);
+
+  return {
+    results,
+    loading,
+    refreshResults: fetchPastEvents
+  };
+}; 

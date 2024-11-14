@@ -1,52 +1,34 @@
-// Base theme colors and values
-const baseTheme = {
-  shadow: {
-    sm: '0 1px 2px 0 rgb(0 0 0 / 0.05)',
-    md: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
-    lg: '0 10px 15px -3px rgb(0 0 0 / 0.1)'
+const theme = {
+  colors: {
+    primary: '#6C5CE7',
+    secondary: '#A8A8FF',
+    background: '#FFFFFF',
+    backgroundAlt: '#F8F9FA',
+    text: '#2D3436',
+    textAlt: '#636E72',
+    border: '#DFE6E9',
+    error: '#D63031',
+    success: '#00B894',
+    warning: '#FDCB6E',
+    white: '#FFFFFF',
   },
-  gradients: {
-    primary: 'linear-gradient(to right, #6366f1, #4f46e5)',
-  }
+  breakpoints: {
+    mobile: '320px',
+    tablet: '768px',
+    desktop: '1024px',
+  },
+  spacing: {
+    xs: '0.25rem',
+    sm: '0.5rem',
+    md: '1rem',
+    lg: '1.5rem',
+    xl: '2rem',
+  },
+  shadows: {
+    small: '0 2px 4px rgba(0,0,0,0.1)',
+    medium: '0 4px 6px rgba(0,0,0,0.1)',
+    large: '0 8px 16px rgba(0,0,0,0.1)',
+  },
 };
 
-export const lightTheme = {
-  ...baseTheme,
-  primary: '#6366f1',
-  secondary: '#4f46e5',
-  background: '#f8fafc',
-  surface: '#ffffff',
-  surface2: '#f1f5f9',
-  surface3: '#e2e8f0',
-  text: {
-    primary: '#0f172a',
-    secondary: '#475569',
-    accent: '#6366f1'
-  },
-  border: '#e2e8f0',
-  error: '#ef4444',
-  success: '#22c55e',
-  warning: '#f59e0b'
-};
-
-export const darkTheme = {
-  ...baseTheme,
-  primary: '#6366f1',
-  secondary: '#4f46e5',
-  background: '#0f172a',
-  surface: '#1e293b',
-  surface2: '#334155',
-  surface3: '#475569',
-  text: {
-    primary: '#f8fafc',
-    secondary: '#cbd5e1',
-    accent: '#818cf8'
-  },
-  border: '#334155',
-  error: '#f87171',
-  success: '#4ade80',
-  warning: '#fbbf24'
-};
-
-// Default theme export
-export const theme = darkTheme; 
+export default theme; 

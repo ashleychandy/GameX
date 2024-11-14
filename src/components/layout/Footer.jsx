@@ -1,11 +1,24 @@
 import React from 'react';
 import styled from 'styled-components';
-import { motion } from 'framer-motion';
 
-const FooterContainer = styled(motion.footer)`
-  background: ${({ theme }) => theme.surface};
-  border-top: 1px solid ${({ theme }) => theme.border};
-  padding: 2rem;
+const Footer = () => {
+  return (
+    <FooterContainer>
+      <FooterContent>
+        <Copyright>© 2023 Dice Game. All rights reserved.</Copyright>
+        <Links>
+          <FooterLink href="/terms">Terms</FooterLink>
+          <FooterLink href="/privacy">Privacy</FooterLink>
+          <FooterLink href="https://github.com/your-repo">GitHub</FooterLink>
+        </Links>
+      </FooterContent>
+    </FooterContainer>
+  );
+};
+
+const FooterContainer = styled.footer`
+  background: ${({ theme }) => theme.colors.backgroundAlt};
+  padding: ${({ theme }) => theme.spacing.lg};
   margin-top: auto;
 `;
 
@@ -16,49 +29,29 @@ const FooterContent = styled.div`
   justify-content: space-between;
   align-items: center;
   
-  @media (max-width: 768px) {
+  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
     flex-direction: column;
-    gap: 1rem;
-    text-align: center;
+    gap: ${({ theme }) => theme.spacing.md};
   }
 `;
 
 const Copyright = styled.p`
-  color: ${({ theme }) => theme.text.secondary};
+  color: ${({ theme }) => theme.colors.textAlt};
 `;
 
 const Links = styled.div`
   display: flex;
-  gap: 2rem;
-  
-  a {
-    color: ${({ theme }) => theme.text.secondary};
-    text-decoration: none;
-    transition: color 0.2s ease;
-    
-    &:hover {
-      color: ${({ theme }) => theme.primary};
-    }
+  gap: ${({ theme }) => theme.spacing.md};
+`;
+
+const FooterLink = styled.a`
+  color: ${({ theme }) => theme.colors.textAlt};
+  text-decoration: none;
+  transition: color 0.2s ease;
+
+  &:hover {
+    color: ${({ theme }) => theme.colors.primary};
   }
 `;
 
-export function Footer() {
-  return (
-    <FooterContainer
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.3 }}
-    >
-      <FooterContent>
-        <Copyright>
-          © {new Date().getFullYear()} Dice Game. All rights reserved.
-        </Copyright>
-        <Links>
-          <a href="#" target="_blank" rel="noopener noreferrer">Terms</a>
-          <a href="#" target="_blank" rel="noopener noreferrer">Privacy</a>
-          <a href="#" target="_blank" rel="noopener noreferrer">Documentation</a>
-        </Links>
-      </FooterContent>
-    </FooterContainer>
-  );
-} 
+export default Footer; 

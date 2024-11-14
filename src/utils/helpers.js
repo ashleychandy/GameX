@@ -82,9 +82,9 @@ export const validateGameData = (data) => {
  * @param {number} chars
  * @returns {string}
  */
-export const shortenAddress = (address, chars = 4) => {
+export const shortenAddress = (address) => {
   if (!address) return '';
-  return `${address.slice(0, chars)}...${address.slice(-chars)}`;
+  return `${address.slice(0, 6)}...${address.slice(-4)}`;
 };
 
 /**
@@ -128,6 +128,50 @@ export const hasRole = async (contract, role, address) => {
     console.error('Error checking role:', error);
     return false;
   }
+};
+
+export const formatEther = (value) => {
+  if (!value) return '0';
+  try {
+    return ethers.formatEther(value);
+  } catch (error) {
+    console.error('Error formatting ether:', error);
+    return '0';
+  }
+};
+
+export const parseEther = (value) => {
+  if (!value) return ethers.parseEther('0');
+  try {
+    return ethers.parseEther(value.toString());
+  } catch (error) {
+    console.error('Error parsing ether:', error);
+    return ethers.parseEther('0');
+  }
+};
+
+export const validateBetAmount = (amount, minBet, maxBet) => {
+  const value = parseFloat(amount);
+  if (isNaN(value)) return false;
+  if (value < parseFloat(minBet)) return false;
+  if (value > parseFloat(maxBet)) return false;
+  return true;
+};
+
+export const calculateWinAmount = (betAmount, multiplier = 5) => {
+  try {
+    const amount = parseFloat(betAmount);
+    return (amount * multiplier).toFixed(4);
+  } catch (error) {
+    return '0';
+  }
+};
+
+export const getErrorMessage = (error) => {
+  if (typeof error === 'string') return error;
+  if (error.reason) return error.reason;
+  if (error.message) return error.message;
+  return 'An unknown error occurred';
 };
 
 // ... rest of the helper functions 

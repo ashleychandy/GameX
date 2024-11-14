@@ -1,113 +1,96 @@
 import React from 'react';
 import styled from 'styled-components';
-import { NavLink as RouterNavLink } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { useWallet } from '@/hooks/useWallet';
-import { Button } from '@/components/common';
-import { useTheme } from '@/hooks/useTheme';
-import { FaSun, FaMoon } from 'react-icons/fa';
+import { useWallet } from '../../contexts/WalletContext';
+import Button from '../common/Button';
 
-const Nav = styled(motion.nav)`
-  display: flex;
-  align-items: center;
-  gap: 2rem;
-
-  @media (max-width: 768px) {
-    gap: 1rem;
-  }
-`;
-
-const NavLink = styled(RouterNavLink)`
-  text-decoration: none;
-  color: ${({ theme }) => theme.text.primary};
-  font-weight: 500;
-  padding: 0.5rem;
-  position: relative;
-  transition: color 0.2s ease;
-
-  &:after {
-    content: '';
-    position: absolute;
-    width: 100%;
-    height: 2px;
-    bottom: 0;
-    left: 0;
-    background: ${({ theme }) => theme.primary};
-    transform: scaleX(0);
-    transition: transform 0.2s ease;
-  }
-
-  &:hover {
-    color: ${({ theme }) => theme.primary};
-  }
-
-  &.active {
-    color: ${({ theme }) => theme.primary};
-    &:after {
-      transform: scaleX(1);
-    }
-  }
-`;
-
-const WalletButton = styled(Button)`
-  @media (max-width: 768px) {
-    padding: 0.5rem;
-    font-size: 0.875rem;
-  }
-`;
-
-const ThemeToggle = styled(motion.button)`
-  background: none;
-  border: none;
-  color: ${({ theme }) => theme.text.primary};
-  cursor: pointer;
-  padding: 0.5rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  
-  &:hover {
-    color: ${({ theme }) => theme.primary};
-  }
-`;
-
-export function Navbar() {
-  const { isConnected, isAdmin, connect, disconnect } = useWallet();
-  const { theme, toggleTheme } = useTheme();
+const Navbar = () => {
+  const { account, connectWallet, disconnectWallet, loading } = useWallet();
 
   return (
-    <Nav
-      initial={{ opacity: 0, y: -20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3 }}
-    >
-      <NavLink to="/" end>
-        Home
-      </NavLink>
-      {isConnected && (
-        <>
-          <NavLink to="/dice">
-            Dice Game
-          </NavLink>
-          <NavLink to="/profile">
-            Profile
-          </NavLink>
-          {isAdmin && (
-            <NavLink to="/admin">
-              Admin
-            </NavLink>
+    <NavContainer>
+      <NavContent>
+        <Logo
+          as={motion.div}
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+        >
+          <Link to="/">Dice Game</Link>
+        </Logo>
+
+        <NavLinks>
+          <NavLink to="/">Home</NavLink>
+          <NavLink to="/game">Play</NavLink>
+        </NavLinks>
+
+        <WalletSection>
+          {account ? (
+            <>
+              <Address>{`${account.slice(0, 6)}...${account.slice(-4)}`}</Address>
+              <Button onClick={disconnectWallet} variant="secondary">
+                Disconnect
+              </Button>
+            </>
+          ) : (
+            <Button onClick={connectWallet} loading={loading}>
+              Connect Wallet
+            </Button>
           )}
-        </>
-      )}
-      <ThemeToggle onClick={toggleTheme}>
-        {theme === 'dark' ? <FaSun size={20} /> : <FaMoon size={20} />}
-      </ThemeToggle>
-      <WalletButton
-        onClick={isConnected ? disconnect : connect}
-        $variant={isConnected ? "secondary" : "primary"}
-      >
-        {isConnected ? "Disconnect" : "Connect Wallet"}
-      </WalletButton>
-    </Nav>
+        </WalletSection>
+      </NavContent>
+    </NavContainer>
   );
-} 
+};
+
+const NavContainer = styled.nav`
+  background: ${({ theme }) => theme.colors.backgroundAlt};
+  padding: ${({ theme }) => theme.spacing.md};
+  box-shadow: ${({ theme }) => theme.shadows.small};
+`;
+
+const NavContent = styled.div`
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+`;
+
+const Logo = styled.div`
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: ${({ theme }) => theme.colors.primary};
+`;
+
+const NavLinks = styled.div`
+  display: flex;
+  gap: ${({ theme }) => theme.spacing.md};
+`;
+
+const NavLink = styled(Link)`
+  color: ${({ theme }) => theme.colors.text};
+  padding: ${({ theme }) => theme.spacing.sm};
+  border-radius: 4px;
+  transition: all 0.2s ease;
+
+  &:hover {
+    color: ${({ theme }) => theme.colors.primary};
+    background: ${({ theme }) => theme.colors.background};
+  }
+`;
+
+const WalletSection = styled.div`
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing.sm};
+`;
+
+const Address = styled.span`
+  padding: ${({ theme }) => theme.spacing.sm};
+  background: ${({ theme }) => theme.colors.background};
+  border-radius: 4px;
+  font-family: monospace;
+`;
+
+export default Navbar; 

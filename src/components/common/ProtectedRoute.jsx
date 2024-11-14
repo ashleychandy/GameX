@@ -1,23 +1,20 @@
 import React from 'react';
 import { Navigate } from 'react-router-dom';
-import { useWallet } from '@/hooks/useWallet';
-import { LoadingOverlay } from './LoadingOverlay';
-import PropTypes from 'prop-types';
+import { useWallet } from '../../contexts/WalletContext';
+import WalletPrompt from './WalletPrompt';
 
-export function ProtectedRoute({ children }) {
-  const { isConnected, isLoading } = useWallet();
+const ProtectedRoute = ({ children }) => {
+  const { account, loading } = useWallet();
 
-  if (isLoading) {
-    return <LoadingOverlay message="Checking access..." />;
+  if (loading) {
+    return <div>Loading...</div>;
   }
 
-  if (!isConnected) {
-    return <Navigate to="/" replace />;
+  if (!account) {
+    return <WalletPrompt />;
   }
 
   return children;
-}
+};
 
-ProtectedRoute.propTypes = {
-  children: PropTypes.node.isRequired
-}; 
+export default ProtectedRoute; 

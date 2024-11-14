@@ -1,29 +1,31 @@
-import React, { Suspense } from 'react';
-import { RouterProvider } from 'react-router-dom';
-import { ToastContainer } from 'react-toastify';
-import { AppProviders } from '@/contexts';
-import { router } from './router';
-import { Loading } from '@/components/common/Loading';
-import 'react-toastify/dist/ReactToastify.css';
+import React from "react";
+import { BrowserRouter } from "react-router-dom";
+import { ToastContainer } from "react-toastify";
+import { ThemeProvider } from "styled-components";
+import AppProviders from "./contexts/AppProviders";
+import Routes from "./routes";
+import GlobalStyles from "./styles/GlobalStyles";
+import theme from "./styles/theme";
+import "react-toastify/dist/ReactToastify.css";
 
-export default function App() {
+const App = () => {
   return (
-    <AppProviders>
-      <Suspense fallback={<Loading />}>
-        <RouterProvider router={router} />
-      </Suspense>
-      <ToastContainer
-        position="bottom-right"
-        theme="dark"
-        autoClose={5000}
-        hideProgressBar={false}
-        newestOnTop
-        closeOnClick
-        rtl={false}
-        pauseOnFocusLoss
-        draggable
-        pauseOnHover
-      />
-    </AppProviders>
+    <BrowserRouter>
+      <ThemeProvider theme={theme}>
+        <AppProviders>
+          <GlobalStyles />
+          <Routes />
+          <ToastContainer
+            position="top-right"
+            autoClose={5000}
+            hideProgressBar={false}
+            closeOnClick
+            pauseOnHover
+          />
+        </AppProviders>
+      </ThemeProvider>
+    </BrowserRouter>
   );
-} 
+};
+
+export default App;

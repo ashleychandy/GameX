@@ -1,9 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { motion } from 'framer-motion';
 import { useGame } from '@/hooks/useGame';
+import { useWallet } from '@/contexts/WalletContext';
 import { Button } from '@/components/common/Button';
-import { formatAmount, isValidAddress } from '@/utils/helpers';
+import { formatAmount } from '@/utils/helpers';
+import { ethers } from 'ethers';
+import { TOKEN_ABI } from '@/abi';
+import { config } from '@/config';
 import { toast } from 'react-toastify';
 
 const Container = styled(motion.div)`
@@ -49,25 +53,25 @@ const Stat = styled.div`
   }
 `;
 
-const RoleManagement = styled.div`
+const RoleManagement = styled(Card)`
   margin-top: 2rem;
-  padding-top: 2rem;
-  border-top: 1px solid ${({ theme }) => theme.border};
 `;
 
 const InputGroup = styled.div`
   display: flex;
+  flex-direction: column;
   gap: 1rem;
-  margin-bottom: 1rem;
+  margin-bottom: 1.5rem;
 `;
 
 const Input = styled.input`
-  flex: 1;
+  width: 100%;
   padding: 0.75rem 1rem;
   border: 2px solid ${({ theme }) => theme.border};
   border-radius: 8px;
-  background: ${({ theme }) => theme.background};
+  background: ${({ theme }) => theme.surface2};
   color: ${({ theme }) => theme.text.primary};
+  font-size: 1rem;
 
   &:focus {
     outline: none;
@@ -75,86 +79,102 @@ const Input = styled.input`
   }
 `;
 
-const AdminList = styled.div`
+const ButtonGroup = styled.div`
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+`;
+
+const RoleSection = styled(Card)`
   margin-top: 2rem;
 `;
 
-const AdminItem = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1rem;
+const AddressDisplay = styled.div`
   background: ${({ theme }) => theme.surface2};
+  padding: 1rem;
   border-radius: 8px;
-  margin-bottom: 0.5rem;
-
-  p {
-    color: ${({ theme }) => theme.text.primary};
-    font-family: monospace;
-  }
+  margin-bottom: 1rem;
+  word-break: break-all;
+  font-family: monospace;
 `;
 
 export function AdminPage() {
-  const { 
-    gameStats, 
-    isLoading, 
-    withdrawFees, 
-    grantAdminRole, 
-    revokeAdminRole,
-    getAdminList,
-    isAdmin 
-  } = useGame();
-  
-  const [newAdminAddress, setNewAdminAddress] = useState('');
-  const [adminList, setAdminList] = useState([]);
+  const { gameStats, isLoading } = useGame();
+  const { provider, address } = useWallet();
+  const [targetAddress, setTargetAddress] = useState('');
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [hasRoles, setHasRoles] = useState({
+    minter: false,
+    burner: false
+  });
 
-  const handleGrantRole = async () => {
-    if (!isValidAddress(newAdminAddress)) {
-      toast.error('Please enter a valid address');
+  const checkDiceGameRoles = async () => {
+    try {
+      const signer = await provider.getSigner();
+      const tokenContract = new ethers.Contract(
+        config.contracts.token,
+        TOKEN_ABI,
+        signer
+      );
+
+      const [minterRole, burnerRole] = await Promise.all([
+        tokenContract.MINTER_ROLE(),
+        tokenContract.BURNER_ROLE()
+      ]);
+
+      const [hasMinter, hasBurner] = await Promise.all([
+        tokenContract.hasRole(minterRole, config.contracts.diceGame),
+        tokenContract.hasRole(burnerRole, config.contracts.diceGame)
+      ]);
+
+      setHasRoles({
+        minter: hasMinter,
+        burner: hasBurner
+      });
+    } catch (error) {
+      console.error('Error checking roles:', error);
+    }
+  };
+
+  useEffect(() => {
+    if (provider) {
+      checkDiceGameRoles();
+    }
+  }, [provider]);
+
+  const handleGrantRole = async (role) => {
+    const targetAddr = targetAddress || config.contracts.diceGame;
+    
+    if (!ethers.isAddress(targetAddr)) {
+      toast.error('Invalid address');
       return;
     }
 
     try {
-      await grantAdminRole(newAdminAddress);
-      toast.success('Admin role granted successfully');
-      setNewAdminAddress('');
-      refreshAdminList();
+      setIsProcessing(true);
+      const signer = await provider.getSigner();
+      const tokenContract = new ethers.Contract(
+        config.contracts.token,
+        TOKEN_ABI,
+        signer
+      );
+
+      const roleHash = await tokenContract[role]();
+      console.log(`Granting ${role} to ${targetAddr}`);
+      
+      const tx = await tokenContract.grantRole(roleHash, targetAddr);
+      await tx.wait();
+
+      toast.success(`${role === 'MINTER_ROLE' ? 'Minter' : 'Burner'} role granted successfully`);
+      setTargetAddress('');
+      await checkDiceGameRoles();
     } catch (error) {
-      toast.error(error.message || 'Failed to grant admin role');
+      console.error('Error granting role:', error);
+      toast.error(error.message || 'Failed to grant role');
+    } finally {
+      setIsProcessing(false);
     }
   };
-
-  const handleRevokeRole = async (address) => {
-    try {
-      await revokeAdminRole(address);
-      toast.success('Admin role revoked successfully');
-      refreshAdminList();
-    } catch (error) {
-      toast.error(error.message || 'Failed to revoke admin role');
-    }
-  };
-
-  const refreshAdminList = async () => {
-    try {
-      const admins = await getAdminList();
-      setAdminList(admins);
-    } catch (error) {
-      console.error('Failed to fetch admin list:', error);
-    }
-  };
-
-  React.useEffect(() => {
-    refreshAdminList();
-  }, []);
-
-  if (!isAdmin) {
-    return (
-      <Container>
-        <Title>Access Denied</Title>
-        <p>You don't have permission to access this page.</p>
-      </Container>
-    );
-  }
 
   return (
     <Container
@@ -162,7 +182,7 @@ export function AdminPage() {
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0 }}
     >
-      <Title>Admin Dashboard</Title>
+      <Title>Game Statistics</Title>
       
       <Card>
         <StatGrid>
@@ -175,58 +195,67 @@ export function AdminPage() {
             <p>{formatAmount(gameStats?.totalVolume || 0)} DICE</p>
           </Stat>
           <Stat>
-            <h3>House Edge</h3>
-            <p>{gameStats?.houseEdge || 0}%</p>
+            <h3>Win Rate</h3>
+            <p>{gameStats?.winRate ? (gameStats.winRate / 100).toFixed(2) : 0}%</p>
           </Stat>
           <Stat>
-            <h3>Collected Fees</h3>
-            <p>{formatAmount(gameStats?.collectedFees || 0)} DICE</p>
+            <h3>Total Winnings</h3>
+            <p>{formatAmount(gameStats?.totalWinnings || 0)} DICE</p>
           </Stat>
         </StatGrid>
-
-        <Button
-          variant="primary"
-          onClick={withdrawFees}
-          disabled={isLoading}
-        >
-          Withdraw Fees
-        </Button>
-
-        <RoleManagement>
-          <Title>Role Management</Title>
-          <InputGroup>
-            <Input
-              type="text"
-              placeholder="Enter address to grant admin role"
-              value={newAdminAddress}
-              onChange={(e) => setNewAdminAddress(e.target.value)}
-            />
-            <Button
-              variant="primary"
-              onClick={handleGrantRole}
-              disabled={isLoading || !newAdminAddress}
-            >
-              Grant Admin Role
-            </Button>
-          </InputGroup>
-
-          <AdminList>
-            <h3>Current Admins</h3>
-            {adminList.map((admin) => (
-              <AdminItem key={admin}>
-                <p>{admin}</p>
-                <Button
-                  variant="error"
-                  onClick={() => handleRevokeRole(admin)}
-                  disabled={isLoading}
-                >
-                  Revoke Role
-                </Button>
-              </AdminItem>
-            ))}
-          </AdminList>
-        </RoleManagement>
       </Card>
+
+      <RoleSection>
+        <Title>Dice Game Contract Roles</Title>
+        <AddressDisplay>
+          Contract Address: {config.contracts.diceGame}
+        </AddressDisplay>
+        <ButtonGroup>
+          <Button
+            variant="primary"
+            onClick={() => handleGrantRole('MINTER_ROLE')}
+            disabled={isProcessing || hasRoles.minter}
+          >
+            {hasRoles.minter ? 'Has Minter Role' : 'Grant Minter Role'}
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={() => handleGrantRole('BURNER_ROLE')}
+            disabled={isProcessing || hasRoles.burner}
+          >
+            {hasRoles.burner ? 'Has Burner Role' : 'Grant Burner Role'}
+          </Button>
+        </ButtonGroup>
+      </RoleSection>
+
+      <RoleSection>
+        <Title>Custom Address Role Management</Title>
+        <InputGroup>
+          <Input
+            type="text"
+            placeholder="Enter address to grant role"
+            value={targetAddress}
+            onChange={(e) => setTargetAddress(e.target.value)}
+            disabled={isProcessing}
+          />
+        </InputGroup>
+        <ButtonGroup>
+          <Button
+            variant="primary"
+            onClick={() => handleGrantRole('MINTER_ROLE')}
+            disabled={isProcessing || !targetAddress}
+          >
+            {isProcessing ? 'Granting...' : 'Grant Minter Role'}
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={() => handleGrantRole('BURNER_ROLE')}
+            disabled={isProcessing || !targetAddress}
+          >
+            {isProcessing ? 'Granting...' : 'Grant Burner Role'}
+          </Button>
+        </ButtonGroup>
+      </RoleSection>
     </Container>
   );
 } 

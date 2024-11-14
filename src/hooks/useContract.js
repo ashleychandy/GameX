@@ -1,35 +1,31 @@
-import { useMemo } from 'react';
+import { useEffect, useState } from 'react';
 import { ethers } from 'ethers';
-import { useWallet } from './useWallet';
-import { DICE_GAME_ABI, TOKEN_ABI } from '@/contracts/abis';
-import { config } from '@/config';
+import { useWallet } from '../contexts/WalletContext';
+import { DICE_GAME_ABI, DICE_GAME_ADDRESS } from '../config/contracts';
 
-export function useContract(contractType = 'dice') {
-  const { provider, signer } = useWallet();
+export const useContract = () => {
+  const { provider, account } = useWallet();
+  const [contract, setContract] = useState(null);
 
-  const contract = useMemo(() => {
-    if (!provider || !signer) return null;
-
-    const contracts = {
-      dice: {
-        address: config.contracts.dice,
-        abi: DICE_GAME_ABI
-      },
-      token: {
-        address: config.contracts.token,
-        abi: TOKEN_ABI
-      }
-    };
-
-    const { address, abi } = contracts[contractType];
-    
-    try {
-      return new ethers.Contract(address, abi, signer);
-    } catch (error) {
-      console.error(`Failed to create ${contractType} contract instance:`, error);
-      return null;
+  useEffect(() => {
+    if (!provider || !account) {
+      setContract(null);
+      return;
     }
-  }, [provider, signer, contractType]);
 
-  return { contract };
-} 
+    try {
+      const signer = provider.getSigner(account);
+      const gameContract = new ethers.Contract(
+        DICE_GAME_ADDRESS,
+        DICE_GAME_ABI,
+        signer
+      );
+      setContract(gameContract);
+    } catch (error) {
+      console.error('Failed to create contract instance:', error);
+      setContract(null);
+    }
+  }, [provider, account]);
+
+  return contract;
+}; 

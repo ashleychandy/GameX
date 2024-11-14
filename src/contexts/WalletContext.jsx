@@ -1,159 +1,101 @@
-import React, {
-  createContext,
-  useContext,
-  useState,
-  useCallback,
-  useEffect,
-} from "react";
-import { ethers } from "ethers";
-import { toast } from "react-toastify";
-import { config } from '@/config';
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { ethers } from 'ethers';
+import { toast } from 'react-toastify';
+import { SUPPORTED_NETWORKS } from '../config';
 
-export const WalletContext = createContext();
+const WalletContext = createContext();
 
-export function WalletProvider({ children }) {
+export const WalletProvider = ({ children }) => {
   const [account, setAccount] = useState(null);
   const [provider, setProvider] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [chainId, setChainId] = useState(null);
+  const [network, setNetwork] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  const handleAccountsChanged = useCallback((accounts) => {
-    if (accounts.length === 0) {
-      setAccount(null);
-      setProvider(null);
-    } else if (accounts[0] !== account) {
+  const connectWallet = async () => {
+    try {
+      if (!window.ethereum) {
+        toast.error('Please install MetaMask!');
+        return;
+      }
+
+      setLoading(true);
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const accounts = await provider.send("eth_requestAccounts", []);
+      const network = await provider.getNetwork();
+      
+      setProvider(provider);
       setAccount(accounts[0]);
+      setNetwork(network);
+    } catch (error) {
+      toast.error('Failed to connect wallet');
+      console.error(error);
+    } finally {
+      setLoading(false);
     }
-  }, [account]);
+  };
 
-  const handleChainChanged = useCallback(async (chainIdHex) => {
-    const newChainId = parseInt(chainIdHex, 16);
-    setChainId(newChainId);
-    
-    if (newChainId !== parseInt(config.network.chainId)) {
-      setAccount(null);
-      setProvider(null);
-      toast.error("Please switch to the correct network");
-    }
-  }, []);
+  const disconnectWallet = () => {
+    setAccount(null);
+    setProvider(null);
+    setNetwork(null);
+  };
 
-  const setupWalletListeners = useCallback(() => {
-    if (!window.ethereum) return;
-
-    window.ethereum.on('accountsChanged', handleAccountsChanged);
-    window.ethereum.on('chainChanged', handleChainChanged);
-    window.ethereum.on('disconnect', () => {
-      setAccount(null);
-      setProvider(null);
-    });
-
-    return () => {
-      window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
-      window.ethereum.removeListener('chainChanged', handleChainChanged);
-      window.ethereum.removeListener('disconnect', () => {});
-    };
-  }, [handleAccountsChanged, handleChainChanged]);
-
-  const switchNetwork = async () => {
+  const switchNetwork = async (chainId) => {
     try {
       await window.ethereum.request({
         method: 'wallet_switchEthereumChain',
-        params: [{ chainId: `0x${parseInt(config.network.chainId).toString(16)}` }],
+        params: [{ chainId: ethers.toQuantity(chainId) }],
       });
     } catch (error) {
       if (error.code === 4902) {
         try {
           await window.ethereum.request({
             method: 'wallet_addEthereumChain',
-            params: [{
-              chainId: `0x${parseInt(config.network.chainId).toString(16)}`,
-              chainName: config.network.name,
-              nativeCurrency: config.network.nativeCurrency,
-              rpcUrls: [config.network.rpcUrl],
-              blockExplorerUrls: [config.network.explorer]
-            }],
+            params: [SUPPORTED_NETWORKS[chainId]],
           });
         } catch (addError) {
-          toast.error('Failed to add network to MetaMask');
+          toast.error('Failed to add network');
         }
-      } else {
-        toast.error('Failed to switch network');
       }
+      toast.error('Failed to switch network');
     }
   };
 
-  const connectWallet = useCallback(async () => {
-    if (!window.ethereum) {
-      toast.error("Please install MetaMask!");
-      return;
-    }
-
-    try {
-      setIsLoading(true);
-      const chainId = await window.ethereum.request({ method: "eth_chainId" });
-      const currentChainId = parseInt(chainId, 16);
-
-      if (currentChainId !== parseInt(config.network.chainId)) {
-        await switchNetwork();
-      }
-
-      const provider = new ethers.BrowserProvider(window.ethereum);
-      const accounts = await provider.send("eth_requestAccounts", []);
-      
-      setAccount(accounts[0]);
-      setProvider(provider);
-      setChainId(currentChainId);
-      toast.success('Wallet connected successfully!');
-    } catch (error) {
-      console.error('Wallet connection error:', error);
-      toast.error(error.message);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  const disconnectWallet = useCallback(() => {
-    setAccount(null);
-    setProvider(null);
-    setChainId(null);
-    toast.info('Wallet disconnected');
-  }, []);
-
   useEffect(() => {
-    const init = async () => {
-      try {
-        if (window.ethereum) {
-          const accounts = await window.ethereum.request({ method: 'eth_accounts' });
-          if (accounts.length > 0) {
-            await connectWallet();
-          }
-        }
-      } catch (error) {
-        console.error('Wallet initialization error:', error);
-      } finally {
-        setIsLoading(false);
+    if (window.ethereum) {
+      window.ethereum.on('accountsChanged', (accounts) => {
+        setAccount(accounts[0] || null);
+      });
+
+      window.ethereum.on('chainChanged', () => {
+        window.location.reload();
+      });
+    }
+
+    return () => {
+      if (window.ethereum) {
+        window.ethereum.removeListener('accountsChanged', () => {});
+        window.ethereum.removeListener('chainChanged', () => {});
       }
     };
-
-    init();
-    const cleanup = setupWalletListeners();
-    return cleanup;
-  }, [connectWallet, setupWalletListeners]);
+  }, []);
 
   return (
-    <WalletContext.Provider value={{
-      provider,
-      account,
-      chainId,
-      isLoading,
-      isConnected: !!account,
-      connectWallet,
-      disconnectWallet
-    }}>
+    <WalletContext.Provider
+      value={{
+        account,
+        provider,
+        network,
+        loading,
+        connectWallet,
+        disconnectWallet,
+        switchNetwork,
+      }}
+    >
       {children}
     </WalletContext.Provider>
   );
-}
+};
 
 export const useWallet = () => {
   const context = useContext(WalletContext);

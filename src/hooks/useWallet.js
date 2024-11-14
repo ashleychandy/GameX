@@ -1,55 +1,90 @@
-import { useContext, useCallback, useEffect, useState } from 'react';
-import { WalletContext } from '@/contexts/WalletContext';
+import { useState, useEffect, useCallback } from 'react';
 import { ethers } from 'ethers';
-import { TOKEN_ABI, DICE_GAME_ABI } from '@/abi';
-import { config } from '@/config';
+import { toast } from 'react-toastify';
 
-export function useWallet() {
-  const context = useContext(WalletContext);
-  const [isAdmin, setIsAdmin] = useState(false);
+const CHAIN_ID = import.meta.env.VITE_CHAIN_ID || '1';
+const RPC_URL = import.meta.env.VITE_RPC_URL;
 
-  const checkAdminStatus = useCallback(async () => {
-    if (!context.provider || !context.address) {
-      setIsAdmin(false);
+export const useWallet = () => {
+  const [address, setAddress] = useState(null);
+  const [provider, setProvider] = useState(null);
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [networkError, setNetworkError] = useState(false);
+
+  const checkNetwork = useCallback(async (provider) => {
+    const network = await provider.getNetwork();
+    const isCorrectNetwork = network.chainId === Number(CHAIN_ID);
+    setNetworkError(!isCorrectNetwork);
+    return isCorrectNetwork;
+  }, []);
+
+  const connect = useCallback(async () => {
+    if (!window.ethereum) {
+      toast.error('Please install MetaMask');
       return;
     }
 
     try {
-      // Check both token and game contract admin roles
-      const tokenContract = new ethers.Contract(
-        config.contracts.token,
-        TOKEN_ABI,
-        context.provider.getSigner()
-      );
+      setIsConnecting(true);
+      const provider = new ethers.providers.Web3Provider(window.ethereum);
+      const accounts = await provider.send('eth_requestAccounts', []);
+      
+      const isCorrectNetwork = await checkNetwork(provider);
+      if (!isCorrectNetwork) {
+        toast.error('Please switch to the correct network');
+        return;
+      }
 
-      const diceContract = new ethers.Contract(
-        config.contracts.diceGame,
-        DICE_GAME_ABI,
-        context.provider.getSigner()
-      );
-
-      const [tokenAdmin, gameOwner] = await Promise.all([
-        tokenContract.hasRole(await tokenContract.DEFAULT_ADMIN_ROLE(), context.address),
-        diceContract.owner()
-      ]);
-
-      // User is admin if they have admin role in token contract or are game owner
-      setIsAdmin(tokenAdmin || gameOwner.toLowerCase() === context.address.toLowerCase());
+      setProvider(provider);
+      setAddress(accounts[0]);
+      localStorage.setItem('walletConnected', 'true');
     } catch (error) {
-      console.error('Error checking admin status:', error);
-      setIsAdmin(false);
+      console.error('Wallet connection error:', error);
+      toast.error('Failed to connect wallet');
+    } finally {
+      setIsConnecting(false);
     }
-  }, [context.provider, context.address]);
+  }, [checkNetwork]);
+
+  const disconnect = useCallback(() => {
+    setAddress(null);
+    setProvider(null);
+    localStorage.removeItem('walletConnected');
+  }, []);
 
   useEffect(() => {
-    if (context.provider && context.address) {
-      checkAdminStatus();
+    const handleAccountsChanged = (accounts) => {
+      setAddress(accounts[0] || null);
+    };
+
+    const handleChainChanged = () => {
+      window.location.reload();
+    };
+
+    if (window.ethereum) {
+      window.ethereum.on('accountsChanged', handleAccountsChanged);
+      window.ethereum.on('chainChanged', handleChainChanged);
+
+      // Auto-connect if previously connected
+      if (localStorage.getItem('walletConnected') === 'true') {
+        connect();
+      }
     }
-  }, [context.provider, context.address, checkAdminStatus]);
+
+    return () => {
+      if (window.ethereum) {
+        window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
+        window.ethereum.removeListener('chainChanged', handleChainChanged);
+      }
+    };
+  }, [connect]);
 
   return {
-    ...context,
-    isAdmin,
-    checkAdminStatus
+    address,
+    provider,
+    connect,
+    disconnect,
+    isConnecting,
+    networkError
   };
-}
+};

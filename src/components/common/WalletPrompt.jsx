@@ -1,52 +1,44 @@
-import React from 'react';
-import styled from 'styled-components';
-import { motion } from 'framer-motion';
-import { useWallet } from '@/hooks/useWallet';
+import React from "react";
+import { useWallet } from '../../hooks/useWallet';
 import { Button } from './Button';
-
-const Container = styled(motion.div)`
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 2rem;
-  background: ${({ theme }) => theme.surface2};
-  border-radius: 12px;
-  text-align: center;
-`;
-
-const Title = styled.h2`
-  color: ${({ theme }) => theme.text.primary};
-  margin-bottom: 1rem;
-`;
-
-const Description = styled.p`
-  color: ${({ theme }) => theme.text.secondary};
-  margin-bottom: 2rem;
-  max-width: 400px;
-`;
+import { Container, Title, Description, NetworkInfo, ErrorMessage } from './styles';
+import { NETWORK_CONFIG } from '../../config';
 
 export function WalletPrompt() {
-  const { connectWallet } = useWallet();
+  const { connectWallet, isConnecting, error } = useWallet();
 
   return (
     <Container
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -20 }}
+      exit={{ opacity: 0 }}
     >
       <Title>Connect Your Wallet</Title>
       <Description>
-        Please connect your wallet to play the Dice Game. Make sure you're on the correct network.
+        Please connect your wallet to access the game. Make sure you have
+        MetaMask installed and are on the correct network.
       </Description>
+      <NetworkInfo>
+        Required Network: {NETWORK_CONFIG.name}
+      </NetworkInfo>
       <Button
         variant="primary"
         onClick={connectWallet}
+        disabled={isConnecting}
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
       >
-        Connect Wallet
+        {isConnecting ? 'Connecting...' : 'Connect Wallet'}
       </Button>
+      
+      {error && (
+        <ErrorMessage
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+        >
+          {error}
+        </ErrorMessage>
+      )}
     </Container>
   );
 } 

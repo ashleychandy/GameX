@@ -1,16 +1,15 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
-import { ethers } from 'ethers';
+import React from 'react';
 import { ThemeProvider as StyledThemeProvider } from 'styled-components';
-import { toast } from 'react-toastify';
-import { lightTheme, darkTheme } from '@/styles/theme';
-import { WalletProvider } from './WalletContext';
 import { GameProvider } from './GameContext';
+import { lightTheme, darkTheme } from '@/styles/theme';
+import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
 // Theme Context
-const ThemeContext = createContext(null);
+export const ThemeContext = React.createContext(null);
 
 export const ThemeProvider = ({ children }) => {
-  const [currentTheme, setCurrentTheme] = useState('dark');
+  const [currentTheme, setCurrentTheme] = React.useState('dark');
   
   const toggleTheme = () => {
     setCurrentTheme(prev => prev === 'light' ? 'dark' : 'light');
@@ -27,23 +26,25 @@ export const ThemeProvider = ({ children }) => {
   );
 };
 
-// Root Provider
 export const AppProviders = ({ children }) => (
   <ThemeProvider>
-    <WalletProvider>
-      <GameProvider>
-        {children}
-      </GameProvider>
-    </WalletProvider>
+    <GameProvider>
+      {children}
+      <ToastContainer
+        position="bottom-right"
+        theme="dark"
+        autoClose={5000}
+        hideProgressBar={false}
+        newestOnTop
+        closeOnClick
+        rtl={false}
+        pauseOnFocusLoss
+        draggable
+        pauseOnHover
+      />
+    </GameProvider>
   </ThemeProvider>
 );
 
 // Export hooks
-export const useTheme = () => {
-  const context = useContext(ThemeContext);
-  if (!context) throw new Error('useTheme must be used within ThemeProvider');
-  return context;
-};
-
-export { useWallet } from './WalletContext';
 export { useGameContext } from './GameContext';

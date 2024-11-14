@@ -1,67 +1,66 @@
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
-import { useWallet } from '@/hooks/useWallet';
+import React, { createContext, useContext, useState, useCallback } from 'react';
 import { ethers } from 'ethers';
-import { TOKEN_ABI } from '@/abi';
-import { config } from '@/config';
+import { useContract } from '../hooks/useContract';
+import { useWallet } from './WalletContext';
+import { toast } from 'react-toastify';
 
-const GameContext = createContext(null);
+const GameContext = createContext();
 
-export function GameProvider({ children }) {
-  const { provider, address } = useWallet();
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [gameState, setGameState] = useState({
-    isActive: false,
-    currentBet: null,
-    history: []
-  });
+export const GameProvider = ({ children }) => {
+  const [selectedNumber, setSelectedNumber] = useState(null);
+  const [betAmount, setBetAmount] = useState('0');
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [gameHistory, setGameHistory] = useState([]);
 
-  const checkAdminStatus = useCallback(async () => {
-    if (!provider || !address) {
-      setIsAdmin(false);
-      return false;
+  const { account } = useWallet();
+  const contract = useContract();
+
+  const placeBet = useCallback(async () => {
+    if (!account || !contract || !selectedNumber || !betAmount) {
+      toast.error('Please connect wallet and select number and bet amount');
+      return;
     }
-
-    const tokenContract = new ethers.Contract(
-      config.contracts.token,
-      TOKEN_ABI,
-      provider.getSigner()
-    );
 
     try {
-      const DEFAULT_ADMIN_ROLE = await tokenContract.DEFAULT_ADMIN_ROLE();
-      const hasAdminRole = await tokenContract.hasRole(
-        DEFAULT_ADMIN_ROLE,
-        address
-      );
-      setIsAdmin(hasAdminRole);
-      return hasAdminRole;
-    } catch (err) {
-      console.error('Error checking admin status:', err);
-      setIsAdmin(false);
-      return false;
+      setIsPlaying(true);
+      const tx = await contract.placeBet(selectedNumber, {
+        value: ethers.parseEther(betAmount)
+      });
+      await tx.wait();
+      
+      toast.success('Bet placed successfully!');
+      // Reset game state
+      setSelectedNumber(null);
+      setBetAmount('0');
+    } catch (error) {
+      toast.error('Failed to place bet');
+      console.error(error);
+    } finally {
+      setIsPlaying(false);
     }
-  }, [provider, address]);
-
-  useEffect(() => {
-    if (provider && address) {
-      checkAdminStatus();
-    }
-  }, [provider, address, checkAdminStatus]);
+  }, [account, contract, selectedNumber, betAmount]);
 
   const value = {
-    isAdmin,
-    gameState,
-    setGameState,
-    checkAdminStatus
+    selectedNumber,
+    setSelectedNumber,
+    betAmount,
+    setBetAmount,
+    isPlaying,
+    gameHistory,
+    placeBet
   };
 
-  return <GameContext.Provider value={value}>{children}</GameContext.Provider>;
-}
+  return (
+    <GameContext.Provider value={value}>
+      {children}
+    </GameContext.Provider>
+  );
+};
 
-export const useGameContext = () => {
+export const useGame = () => {
   const context = useContext(GameContext);
   if (!context) {
-    throw new Error('useGameContext must be used within a GameProvider');
+    throw new Error('useGame must be used within a GameProvider');
   }
   return context;
 };

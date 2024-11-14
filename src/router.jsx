@@ -4,7 +4,6 @@ import { Layout } from '@/components/layout/Layout';
 import { HomePage } from '@/pages/Home';
 import { DicePage } from '@/pages/DiceGame';
 import { AdminPage } from '@/pages/Admin';
-import { ProtectedRoute } from '@/components/common/ProtectedRoute';
 
 export const router = createBrowserRouter([
   {
@@ -17,19 +16,11 @@ export const router = createBrowserRouter([
       },
       {
         path: 'play',
-        element: (
-          <ProtectedRoute>
-            <DicePage />
-          </ProtectedRoute>
-        )
+        element: <DicePage />
       },
       {
         path: 'admin',
-        element: (
-          <ProtectedRoute>
-            <AdminPage />
-          </ProtectedRoute>
-        )
+        element: <AdminPage />
       }
     ]
   }
