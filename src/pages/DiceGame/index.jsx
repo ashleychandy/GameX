@@ -1,13 +1,11 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState } from 'react';
 import styled from 'styled-components';
-import { ethers } from 'ethers';
-import { useWallet } from '@/hooks/useWallet';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useGame } from '@/hooks/useGame';
 import { Button } from '@/components/common';
 import { toast } from 'react-toastify';
-import { motion, AnimatePresence } from 'framer-motion';
-import { DICE_GAME_ABI } from '@/contracts/abis';
-import { formatAmount } from '@/utils/helpers';
 import { Loading } from '@/components/common/Loading';
+import { formatAmount } from '@/utils/helpers';
 
 const DiceContainer = styled.div`
   padding: 2rem;
@@ -85,179 +83,69 @@ const StatCard = styled.div`
 const DicePage = () => {
   const [betAmount, setBetAmount] = useState('');
   const [selectedNumber, setSelectedNumber] = useState(null);
-  const [isRolling, setIsRolling] = useState(false);
-  const [result, setResult] = useState(null);
-  const [gameStats, setGameStats] = useState({
-    totalBets: 0,
-    totalWins: 0,
-    totalLosses: 0,
-  });
-  const { provider, address, balance, chainId } = useWallet();
-  const [contract, setContract] = useState(null);
-  const [isInitializing, setIsInitializing] = useState(true);
+  const {
+    gameData,
+    gameStats,
+    betHistory,
+    isLoading,
+    error,
+    placeBet,
+    refreshGameState
+  } = useGame();
 
-  // Initialize contract
-  useEffect(() => {
-    const init = async () => {
-      setIsInitializing(true);
-      if (provider && address) {
-        const diceGameAddress = import.meta.env.VITE_DICE_GAME_ADDRESS;
-        const contract = new ethers.Contract(
-          diceGameAddress,
-          DICE_GAME_ABI,
-          provider.getSigner()
-        );
-        setContract(contract);
-      }
-      setIsInitializing(false);
-    };
-    init();
-  }, [provider, address]);
-
-  if (isInitializing) return <Loading />;
-
-  // Load game stats
-  useEffect(() => {
-    const loadStats = async () => {
-      if (contract && address) {
-        try {
-          const [totalBets, totalWins] = await Promise.all([
-            contract.playerTotalBets(address),
-            contract.playerTotalWins(address),
-          ]);
-          
-          setGameStats({
-            totalBets: totalBets.toNumber(),
-            totalWins: totalWins.toNumber(),
-            totalLosses: totalBets.toNumber() - totalWins.toNumber(),
-          });
-        } catch (error) {
-          console.error('Error loading stats:', error);
-        }
-      }
-    };
-
-    loadStats();
-  }, [contract, address]);
-
-  // Handle bet placement
   const handleBet = async () => {
-    if (!betAmount || !selectedNumber || !contract) {
+    if (!betAmount || !selectedNumber) {
       toast.error('Please select a number and enter bet amount');
       return;
     }
 
     try {
-      setIsRolling(true);
-      const betAmountWei = ethers.utils.parseEther(betAmount);
-      
-      // Check allowance and approve if needed
-      const tokenContract = new ethers.Contract(
-        import.meta.env.VITE_TOKEN_ADDRESS,
-        ['function approve(address spender, uint256 amount) returns (bool)'],
-        provider.getSigner()
-      );
-
-      const allowance = await tokenContract.allowance(address, contract.address);
-      if (allowance.lt(betAmountWei)) {
-        const tx = await tokenContract.approve(contract.address, betAmountWei);
-        await tx.wait();
-      }
-
-      // Place bet
-      const tx = await contract.placeBet(selectedNumber, betAmountWei, {
-        gasLimit: 500000,
-      });
-
-      toast.info('Rolling the dice...');
-      
-      // Wait for transaction and get result
-      const receipt = await tx.wait();
-      const betEvent = receipt.events?.find(e => e.event === 'BetPlaced');
-      const resultEvent = receipt.events?.find(e => e.event === 'GameResult');
-      
-      if (resultEvent) {
-        const [playerWon, rolledNumber] = resultEvent.args;
-        setResult({
-          won: playerWon,
-          number: rolledNumber.toNumber(),
-          amount: betAmount,
-        });
-
-        toast.success(
-          playerWon 
-            ? `You won! Rolled number: ${rolledNumber}` 
-            : `Better luck next time! Rolled number: ${rolledNumber}`
-        );
-
-        // Update stats
-        setGameStats(prev => ({
-          totalBets: prev.totalBets + 1,
-          totalWins: prev.totalWins + (playerWon ? 1 : 0),
-          totalLosses: prev.totalLosses + (playerWon ? 0 : 1),
-        }));
-      }
-    } catch (error) {
-      console.error('Bet error:', error);
-      toast.error(error.message || 'Error placing bet');
-    } finally {
-      setIsRolling(false);
+      await placeBet(selectedNumber, betAmount);
+      setBetAmount('');
+      setSelectedNumber(null);
+    } catch (err) {
+      toast.error(err.message);
     }
   };
+
+  if (isLoading) return <Loading />;
 
   return (
     <DiceContainer>
       <GameSection
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3 }}
       >
-        <h1>Dice Game</h1>
-        
-        <StatsSection>
-          <StatCard>
-            <h3>Total Bets</h3>
-            <p>{gameStats.totalBets}</p>
-          </StatCard>
-          <StatCard>
-            <h3>Total Wins</h3>
-            <p>{gameStats.totalWins}</p>
-          </StatCard>
-          <StatCard>
-            <h3>Win Rate</h3>
-            <p>
-              {gameStats.totalBets > 0
-                ? ((gameStats.totalWins / gameStats.totalBets) * 100).toFixed(1)
-                : 0}
-              %
-            </p>
-          </StatCard>
-        </StatsSection>
+        <h2>Game Stats</h2>
+        <StatsGrid>
+          <StatItem>
+            <StatLabel>Win Rate</StatLabel>
+            <StatValue>{gameStats.winRate.toFixed(2)}%</StatValue>
+          </StatItem>
+          <StatItem>
+            <StatLabel>Games Won</StatLabel>
+            <StatValue>{gameStats.gamesWon}</StatValue>
+          </StatItem>
+          <StatItem>
+            <StatLabel>Games Lost</StatLabel>
+            <StatValue>{gameStats.gamesLost}</StatValue>
+          </StatItem>
+          <StatItem>
+            <StatLabel>Avg Bet</StatLabel>
+            <StatValue>{formatAmount(gameStats.averageBet)} DICE</StatValue>
+          </StatItem>
+        </StatsGrid>
+      </GameSection>
 
-        <BetControls>
-          <input
-            type="number"
-            value={betAmount}
-            onChange={(e) => setBetAmount(e.target.value)}
-            placeholder="Enter bet amount"
-            disabled={isRolling}
-          />
-          <Button 
-            onClick={handleBet} 
-            disabled={!betAmount || !selectedNumber || isRolling}
-            loading={isRolling}
-          >
-            {isRolling ? 'Rolling...' : 'Roll Dice'}
-          </Button>
-        </BetControls>
-
+      <GameSection>
+        <h2>Place Your Bet</h2>
         <NumberGrid>
           {[1, 2, 3, 4, 5, 6].map((number) => (
             <NumberButton
               key={number}
               selected={selectedNumber === number}
               onClick={() => setSelectedNumber(number)}
-              disabled={isRolling}
+              disabled={gameData?.isActive}
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
             >
@@ -266,21 +154,51 @@ const DicePage = () => {
           ))}
         </NumberGrid>
 
-        <AnimatePresence>
-          {result && (
-            <ResultDisplay
-              won={result.won}
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-            >
-              <h2>{result.won ? 'You Won!' : 'You Lost'}</h2>
-              <p>Rolled Number: {result.number}</p>
-              <p>Bet Amount: {formatAmount(result.amount)} GameX</p>
-            </ResultDisplay>
-          )}
-        </AnimatePresence>
+        <BetControls>
+          <Input
+            type="number"
+            value={betAmount}
+            onChange={(e) => setBetAmount(e.target.value)}
+            placeholder="Enter bet amount"
+            disabled={gameData?.isActive}
+          />
+          <Button
+            onClick={handleBet}
+            disabled={gameData?.isActive || !betAmount || !selectedNumber}
+          >
+            Place Bet
+          </Button>
+        </BetControls>
+
+        {gameData?.isActive && (
+          <GameStatus>
+            <StatusText>
+              Game in progress... Chosen number: {gameData.chosenNumber}
+            </StatusText>
+            <StatusText>
+              Bet Amount: {formatAmount(gameData.amount)} DICE
+            </StatusText>
+          </GameStatus>
+        )}
       </GameSection>
+
+      <GameSection>
+        <h2>Bet History</h2>
+        <HistoryList>
+          {betHistory.map((bet, index) => (
+            <HistoryItem key={index}>
+              <span>Chosen: {bet.chosenNumber}</span>
+              <span>Rolled: {bet.rolledNumber}</span>
+              <span>Amount: {formatAmount(bet.amount)} DICE</span>
+              <span>
+                {new Date(bet.timestamp * 1000).toLocaleDateString()}
+              </span>
+            </HistoryItem>
+          ))}
+        </HistoryList>
+      </GameSection>
+
+      {error && <ErrorMessage>{error}</ErrorMessage>}
     </DiceContainer>
   );
 };

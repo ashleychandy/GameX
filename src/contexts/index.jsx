@@ -2,7 +2,28 @@ import React, { createContext, useContext, useState, useCallback } from 'react';
 import { ethers } from 'ethers';
 import { ThemeProvider as StyledThemeProvider } from 'styled-components';
 import { toast } from 'react-toastify';
-import themes from '@/styles/theme';
+import { lightTheme, darkTheme } from '@/styles/theme';
+
+// Theme Context
+const ThemeContext = createContext(null);
+
+export const ThemeProvider = ({ children }) => {
+  const [currentTheme, setCurrentTheme] = useState('light');
+  
+  const toggleTheme = () => {
+    setCurrentTheme(prev => prev === 'light' ? 'dark' : 'light');
+  };
+
+  const theme = currentTheme === 'light' ? lightTheme : darkTheme;
+
+  return (
+    <ThemeContext.Provider value={{ theme: currentTheme, toggleTheme }}>
+      <StyledThemeProvider theme={theme}>
+        {children}
+      </StyledThemeProvider>
+    </ThemeContext.Provider>
+  );
+};
 
 // Web3 Context
 const Web3Context = createContext(null);
@@ -18,7 +39,7 @@ export const Web3Provider = ({ children }) => {
     }
 
     try {
-      const provider = new ethers.providers.Web3Provider(window.ethereum);
+      const provider = new ethers.BrowserProvider(window.ethereum);
       const accounts = await provider.send("eth_requestAccounts", []);
       setAccount(accounts[0]);
       setProvider(provider);
@@ -31,25 +52,6 @@ export const Web3Provider = ({ children }) => {
     <Web3Context.Provider value={{ provider, account, connectWallet }}>
       {children}
     </Web3Context.Provider>
-  );
-};
-
-// Theme Context
-const ThemeContext = createContext(null);
-
-export const ThemeProvider = ({ children }) => {
-  const [currentTheme, setCurrentTheme] = useState('light');
-  
-  const toggleTheme = () => {
-    setCurrentTheme(prev => prev === 'light' ? 'dark' : 'light');
-  };
-
-  return (
-    <ThemeContext.Provider value={{ theme: currentTheme, toggleTheme }}>
-      <StyledThemeProvider theme={themes[currentTheme]}>
-        {children}
-      </StyledThemeProvider>
-    </ThemeContext.Provider>
   );
 };
 
@@ -70,30 +72,32 @@ export const GameProvider = ({ children }) => {
   );
 };
 
-// Notification Context
-const NotificationContext = createContext(null);
-
-export const NotificationProvider = ({ children }) => {
-  const notify = useCallback((message, type = 'info') => {
-    toast[type](message);
-  }, []);
-
-  return (
-    <NotificationContext.Provider value={{ notify }}>
-      {children}
-    </NotificationContext.Provider>
-  );
-};
-
 // Root Provider
 export const AppProviders = ({ children }) => (
-  <Web3Provider>
-    <ThemeProvider>
-      <NotificationProvider>
-        <GameProvider>
-          {children}
-        </GameProvider>
-      </NotificationProvider>
-    </ThemeProvider>
-  </Web3Provider>
+  <ThemeProvider>
+    <Web3Provider>
+      <GameProvider>
+        {children}
+      </GameProvider>
+    </Web3Provider>
+  </ThemeProvider>
 );
+
+// Export hooks
+export const useThemeContext = () => {
+  const context = useContext(ThemeContext);
+  if (!context) throw new Error('useThemeContext must be used within ThemeProvider');
+  return context;
+};
+
+export const useWeb3Context = () => {
+  const context = useContext(Web3Context);
+  if (!context) throw new Error('useWeb3Context must be used within Web3Provider');
+  return context;
+};
+
+export const useGameContext = () => {
+  const context = useContext(GameContext);
+  if (!context) throw new Error('useGameContext must be used within GameProvider');
+  return context;
+};

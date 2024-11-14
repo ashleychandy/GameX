@@ -3,47 +3,64 @@ import React from 'react';
 import styled from 'styled-components';
 import { motion } from 'framer-motion';
 import { Outlet } from 'react-router-dom';
-import { Navbar } from './Navbar';
-import { Footer } from './Footer';
+import { useWeb3Context } from '@/contexts';
 
-const LayoutWrapper = styled(motion.div)`
+const LayoutWrapper = styled.div`
   min-height: 100vh;
   display: flex;
   flex-direction: column;
   background: ${({ theme }) => theme.background};
 `;
 
+const Header = styled.header`
+  padding: 1rem 2rem;
+  background: ${({ theme }) => theme.surface};
+  border-bottom: 1px solid ${({ theme }) => theme.border};
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+`;
+
 const Main = styled(motion.main)`
   flex: 1;
-  width: 100%;
-  max-width: 1200px;
-  margin: 0 auto;
   padding: 2rem;
-  
-  @media (max-width: 768px) {
-    padding: 1rem;
+  max-width: 1200px;
+  width: 100%;
+  margin: 0 auto;
+`;
+
+const ConnectButton = styled.button`
+  background: ${({ theme }) => theme.primary};
+  color: white;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  font-weight: 600;
+
+  &:hover {
+    opacity: 0.9;
   }
 `;
 
-const pageTransition = {
-  initial: { opacity: 0, y: 20 },
-  animate: { opacity: 1, y: 0 },
-  exit: { opacity: 0, y: -20 }
-};
-
 export function Layout() {
+  const { account, connectWallet } = useWeb3Context();
+
   return (
     <LayoutWrapper>
-      <Navbar />
+      <Header>
+        <h1>Dice Game</h1>
+        <ConnectButton onClick={connectWallet}>
+          {account ? `${account.slice(0, 6)}...${account.slice(-4)}` : 'Connect Wallet'}
+        </ConnectButton>
+      </Header>
       <Main
-        initial="initial"
-        animate="animate"
-        exit="exit"
-        variants={pageTransition}
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -20 }}
       >
         <Outlet />
       </Main>
-      <Footer />
     </LayoutWrapper>
   );
 }
